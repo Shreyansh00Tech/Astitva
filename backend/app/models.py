@@ -661,3 +661,25 @@ class ChatMessage(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
     __table_args__ = (Index("ix_chat_messages_conv_created", "conversation_id", "created_at"),)
+
+
+class MockRecord(Base):
+    """Synthetic rows behind the simulated model/dataset/database workspaces (never real data).
+
+    table_name "_meta" holds editable model metadata and admin settings for a resource."""
+
+    __tablename__ = "mock_records"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    table_name: Mapped[str] = mapped_column(String(48))
+    record_key: Mapped[str] = mapped_column(String(48))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(TS)
+
+    __table_args__ = (Index("ix_mock_records_res_table", "resource_id", "table_name"),
+                      UniqueConstraint("resource_id", "table_name", "record_key", name="uq_mock_record_key"))
