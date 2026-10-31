@@ -188,6 +188,11 @@ class Project(Base, TimestampMixin):
     department_id: Mapped[str | None] = mapped_column(ForeignKey("departments.id"))
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE")
     description: Mapped[str | None] = mapped_column(Text)
+    # Project timeline (simulated). Time-bound access is capped at end_date so access never outlives the project.
+    team_name: Mapped[str | None] = mapped_column(String(120))
+    start_date: Mapped[datetime | None] = mapped_column(TS)
+    submission_date: Mapped[datetime | None] = mapped_column(TS)  # deliverable due date
+    end_date: Mapped[datetime | None] = mapped_column(TS)
 
 
 class ProjectMember(Base):
@@ -298,6 +303,7 @@ class AccessRequest(Base, TimestampMixin):
     deadline_at: Mapped[datetime | None] = mapped_column(TS, index=True)  # requested completion deadline (UTC)
     business_impact: Mapped[str] = mapped_column(String(10), default="MEDIUM", server_default="MEDIUM")
     routing_reasons: Mapped[list | None] = mapped_column(JSON)  # why this approval path was chosen
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)  # requester's current project
 
     requester: Mapped[User] = relationship(foreign_keys=[requester_id], lazy="joined")
     resource: Mapped[Resource] = relationship(lazy="joined")
@@ -365,6 +371,7 @@ class AccessGrant(Base, TimestampMixin):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id"), index=True)
     request_id: Mapped[str | None] = mapped_column(ForeignKey("access_requests.id"))
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
     permissions: Mapped[list] = mapped_column(JSON)
     purpose: Mapped[str] = mapped_column(String(40))
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE", index=True)  # ACTIVE | EXPIRED | REVOKED

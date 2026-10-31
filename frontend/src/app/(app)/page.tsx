@@ -11,6 +11,7 @@ import { ErrorState, PageHeader, Skeleton } from "@/components/ui/misc";
 import { StatTile } from "@/components/stat";
 import { AreaSeries, HBars, LinesChart, StackedBars, STATUS_KEY } from "@/components/charts";
 import { Button } from "@/components/ui/button";
+import { ProjectAccessBoxes } from "@/components/project-timeline";
 
 const FEED_ICON: Record<string, any> = {
   REQUEST_CREATED: KeyRound, REQUEST_APPROVE: CheckCircle2, REQUEST_REJECT: XCircle, REQUEST_NARROW_SCOPE: ShieldAlert,
@@ -38,6 +39,7 @@ function Personal({ data }: { data: any }) {
           <StackedBars data={data.charts.access_outcomes} x="week" series={[{ key: "allowed", label: "Allowed", color: "status-good" }, { key: "denied", label: "Denied", color: "status-critical" }]} />
         </CardBody></Card>
       </div>
+      <div className="mt-4"><ProjectAccessBoxes endpoint="/api/me/project-timeline" /></div>
     </>
   );
 }

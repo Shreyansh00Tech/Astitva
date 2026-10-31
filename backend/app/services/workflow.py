@@ -10,7 +10,7 @@ from app.core.catalog import PURPOSES, purpose_label, sort_perms
 from app.core.context import Actor
 from app.core.rbac import RISK_REVIEWER, SECURITY_ADMIN
 from app.models import AccessGrant, AccessRequest, ApprovalRecord, Resource, User, utcnow
-from app.services import audit, priority, risk, sod
+from app.services import audit, priority, projects, risk, sod
 from app.services.grants import create_grant
 from app.services.notify import notify, notify_role, raise_alert
 
@@ -116,7 +116,7 @@ def _auto_approve(db: Session, req: AccessRequest, rules: dict | None, score: in
     grant, token = create_grant(db, policy_actor, user_id=req.requester_id, resource_id=req.resource_id,
                                 permissions=req.approved_permissions, purpose=req.purpose,
                                 hours=req.approved_duration_hours, request_id=req.id,
-                                approval_ref=f"AUTO-{req.ref[4:]}")
+                                approval_ref=f"AUTO-{req.ref[4:]}", project_id=req.project_id)
     audit.record(db, policy_actor, "REQUEST_AUTO_APPROVED", resource_id=req.resource_id, target_type="ACCESS_REQUEST",
                  target_id=req.ref, request_id=req.id,
                  reason=f"Auto-approved by policy: rule-based risk score {score} <= {rules['auto_approve_max_score'] if rules else '-'}",
@@ -206,6 +206,8 @@ def submit(db: Session, actor: Actor, *, resource_id: str, permissions: list[str
                         approved_permissions=perms, purpose=purpose, justification=justification.strip(),
                         requested_duration_hours=duration_hours, approved_duration_hours=duration_hours,
                         status="PENDING", required_stages=[], deadline_at=deadline_at, business_impact=business_impact)
+    proj = projects.current_project(db, user.id)
+    req.project_id = proj.id if proj else None
     db.add(req)
     db.flush()
     db.refresh(req)
@@ -330,7 +332,8 @@ def act(db: Session, actor: Actor, request_id: str, action: str, comment: str | 
             approval_ref = f"APR-{req.ref[4:]}-{len(req.approvals) + 1}"
             grant, token = create_grant(db, actor, user_id=req.requester_id, resource_id=req.resource_id,
                                         permissions=req.approved_permissions, purpose=req.purpose,
-                                        hours=req.approved_duration_hours, request_id=req.id, approval_ref=approval_ref)
+                                        hours=req.approved_duration_hours, request_id=req.id, approval_ref=approval_ref,
+                                        project_id=req.project_id)
             notify(db, req.requester_id, "REQUEST_APPROVED", f"Access approved: {req.resource.name}",
                    f"{', '.join(req.approved_permissions)} for {purpose_label(req.purpose)}, valid "
                    f"{req.approved_duration_hours}h. Token {token.token_hint}.", "/active-access", "SUCCESS")

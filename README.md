@@ -123,11 +123,16 @@ Nexora Technologies models, datasets and databases.
   extension). Managers and the security manager can **revoke** fully or drop
   single permissions; emergency (break-glass) access is monitored and revocable.
 - **Separation of duties:** nobody approves their own request.
+- **Access ends with the project:** every request is linked to the requester's
+  current project, and a grant never outlives the project end date (asked for
+  30 days, project ends in 15, so access ends in 15). The employee Overview shows
+  the current project, due date and team, plus one timeline with the project
+  start, submission and end dates and each grant's start and expiry.
 - Active grants, decision history and a hash-chained audit trail are visible in
   the UI.
 
 Tests (`backend/tests`) cover separation of duties, expiry, narrowed scope,
-emergency revocation, routing guardrails, risk engine and priority.
+emergency revocation, routing guardrails, risk engine, priority and project-bound expiry.
 
 ## Known limitations
 
