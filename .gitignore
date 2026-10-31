@@ -1,4 +1,15 @@
+.env.*
+!.env.example
+*.log
+*.pyc
+*.tsbuildinfo
 .DS_Store
 .env
-node_modules/
+.next/
+.pytest_cache/
+.venv/
+__pycache__/
 dist/
+dump.rdb
+frontend/next-env.d.ts
+node_modules/

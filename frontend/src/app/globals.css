@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 60 9% 97%;
+    --foreground: 228 40% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 228 40% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 228 40% 8%;
+    --primary: 228 45% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 60 6% 94%;
+    --secondary-foreground: 228 30% 12%;
+    --muted: 60 6% 94%;
+    --muted-foreground: 225 8% 42%;
+    --accent: 60 6% 93%;
+    --accent-foreground: 228 30% 12%;
+    --border: 60 5% 88%;
+    --input: 60 5% 85%;
+    --ring: 258 90% 62%;
+    --violet: 258 90% 60%;
+    --violet-soft: 258 100% 97%;
+    --info: 213 67% 50%;
+    --success: 158 84% 33%;
+    --warning: 38 92% 45%;
+    --serious: 18 82% 52%;
+    --critical: 0 72% 51%;
+    --sidebar: 60 9% 98%;
+    /* chart roles (validated categorical order: violet, orange, aqua, blue) */
+    --chart-surface: #fcfcfb;
+    --series-1: #6250d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #2a78d6;
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #d03b3b;
+    --grid: #e7e6e1;
+    --axis: #6b6a66;
+  }
+  .dark {
+    --background: 228 16% 6%;
+    --foreground: 220 14% 93%;
+    --card: 228 14% 8.5%;
+    --card-foreground: 220 14% 93%;
+    --popover: 228 14% 9.5%;
+    --popover-foreground: 220 14% 93%;
+    --primary: 220 14% 96%;
+    --primary-foreground: 228 40% 8%;
+    --secondary: 228 12% 13%;
+    --secondary-foreground: 220 14% 93%;
+    --muted: 228 12% 13%;
+    --muted-foreground: 225 9% 62%;
+    --accent: 228 12% 14%;
+    --accent-foreground: 220 14% 93%;
+    --border: 228 11% 16%;
+    --input: 228 11% 20%;
+    --ring: 258 90% 68%;
+    --violet: 258 95% 70%;
+    --violet-soft: 258 40% 14%;
+    --info: 213 77% 60%;
+    --success: 158 64% 45%;
+    --warning: 38 92% 55%;
+    --serious: 18 82% 60%;
+    --critical: 0 72% 60%;
+    --sidebar: 228 16% 7%;
+    --chart-surface: #1a1a19;
+    --series-1: #9085e9;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #3987e5;
+    --grid: #262832;
+    --axis: #8d8e98;
+  }
+  * { @apply border-border; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { @apply bg-background text-foreground; font-feature-settings: "cv11", "ss01"; }
+  ::selection { background: hsl(var(--violet) / .25); }
+}
+
+@layer components {
+  .tabular { font-variant-numeric: tabular-nums; }
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 8px; }
+  .hairline { box-shadow: 0 0 0 1px hsl(var(--border)); }
+  .card-elevated { box-shadow: 0 1px 0 0 hsl(var(--border) / .6), 0 1px 2px 0 rgb(0 0 0 / .03); }
+  .bg-grid {
+    background-image: linear-gradient(hsl(var(--border) / .5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / .5) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .recharts-cartesian-grid line { stroke: var(--grid); }
+  .recharts-text { fill: var(--axis); font-size: 11px; }
+}
+
+/* Approval stepper motion: transform/opacity only (compositor), disabled for reduced motion. */
+@keyframes stepper-ring { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(2.2); opacity: 0; } }
+@keyframes stepper-pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes stepper-dot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.7); opacity: .6; } }
+@keyframes stepper-flow { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+@layer components {
+  .stepper-ring { animation: stepper-ring 1.8s cubic-bezier(.22,1,.36,1) infinite; will-change: transform, opacity; }
+  .stepper-pop { animation: stepper-pop .55s cubic-bezier(.22,1,.36,1) both; }
+  .stepper-dot { animation: stepper-dot 1.6s ease-in-out infinite; }
+  .stepper-flow { animation: stepper-flow 1.6s cubic-bezier(.45,0,.55,1) infinite; will-change: transform; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stepper-ring, .stepper-flow { animation: none; display: none; }
+  .stepper-pop, .stepper-dot { animation: none; }
+}
+
+/* ------------------------------------------------------------------ login motion
+   Transform/opacity only, so every frame is composited on the GPU (no layout, no paint) and runs at the
+   display refresh rate. One easing curve everywhere for a calm, consistent feel. */
+@keyframes auth-rise { from { opacity: 0; transform: translate3d(0, 14px, 0); } to { opacity: 1; transform: none; } }
+@keyframes auth-word { from { opacity: 0; transform: translate3d(0, 105%, 0); } to { opacity: 1; transform: none; } }
+@keyframes auth-card { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+@keyframes auth-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes auth-orb-a { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(90px, -60px, 0) scale(1.12); } }
+@keyframes auth-orb-b { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(-80px, -50px, 0) scale(.9); } }
+@keyframes auth-scan { 0% { transform: translate3d(0, -160px, 0); opacity: 0; } 10% { opacity: 1; } 60% { opacity: 1; } 75%, 100% { transform: translate3d(0, 110vh, 0); opacity: 0; } }
+@keyframes auth-node { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.6); opacity: .45; } }
+@keyframes auth-core { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes auth-emblem { from { opacity: 0; transform: translate3d(0, -50%, 0) scale(.92); } to { opacity: 1; transform: translate3d(0, -50%, 0) scale(1); } }
+@keyframes auth-glow { 0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); opacity: .8; } 50% { transform: translate3d(-50%, -50%, 0) scale(1.15); opacity: 1; } }
+@keyframes auth-shine { from { transform: translate3d(-120%, 0, 0) skewX(-20deg); } to { transform: translate3d(320%, 0, 0) skewX(-20deg); } }
+
+@layer components {
+  .auth-rise { animation: auth-rise .8s cubic-bezier(.22,1,.36,1) both; }
+  .auth-word { animation: auth-word .9s cubic-bezier(.22,1,.36,1) both; }
+  .auth-card { animation: auth-card .9s cubic-bezier(.22,1,.36,1) .12s both; }
+  .auth-spin { animation: auth-spin linear infinite; will-change: transform; }
+  .auth-spin-rev { animation: auth-spin-rev linear infinite; will-change: transform; }
+  .auth-orb-a { animation: auth-orb-a 22s cubic-bezier(.45,0,.55,1) infinite; will-change: transform; }
+  .auth-orb-b { animation: auth-orb-b 26s cubic-bezier(.45,0,.55,1) infinite; will-change: transform; }
+  .auth-scan { background: linear-gradient(180deg, transparent, rgba(169,155,255,.07) 50%, transparent); animation: auth-scan 9s cubic-bezier(.45,0,.55,1) 1.2s infinite; will-change: transform, opacity; }
+  .auth-node { animation: auth-node 3.2s ease-in-out infinite; box-shadow: 0 0 14px 2px rgba(169,155,255,.55); }
+  .auth-core-ring { animation: auth-core 2.6s cubic-bezier(.22,1,.36,1) infinite; }
+  .auth-emblem { animation: auth-emblem 1.4s cubic-bezier(.22,1,.36,1) .3s both; }
+  .auth-form-glow { animation: auth-glow 12s ease-in-out infinite; will-change: transform; }
+  /* primary buttons inside the auth card get a light sweep on hover */
+  .auth-card button[type="submit"] { position: relative; overflow: hidden; transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s; }
+  .auth-card button[type="submit"]:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 24px -10px hsl(var(--violet) / .55); }
+  .auth-card button[type="submit"]:not(:disabled):active { transform: translateY(0) scale(.99); }
+  .auth-card button[type="submit"]::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 35%; pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent); transform: translate3d(-120%, 0, 0) skewX(-20deg); }
+  .auth-card button[type="submit"]:not(:disabled):hover::after { animation: auth-shine .9s cubic-bezier(.22,1,.36,1); }
+  .auth-card input { transition: border-color .2s, box-shadow .25s cubic-bezier(.22,1,.36,1); }
+  .auth-card input:focus { box-shadow: 0 0 0 4px hsl(var(--violet) / .12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-rise, .auth-word, .auth-card, .auth-emblem { animation: none; }
+  .auth-spin, .auth-spin-rev, .auth-orb-a, .auth-orb-b, .auth-node, .auth-core-ring, .auth-form-glow { animation: none; }
+  .auth-scan { display: none; }
+  .auth-card button[type="submit"]::after { display: none; }
+  .auth-card button[type="submit"]:hover { transform: none; }
+}
