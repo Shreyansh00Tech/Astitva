@@ -48,9 +48,27 @@ class Settings(BaseSettings):
     llm_model: str = "claude-sonnet-5-5"
     llm_base_url: str | None = None
 
+    # NamoID Hosted Auth (OpenID Connect, Authorization Code + PKCE S256).
+    # Issuer and Client ID come from the NamoID Console. The Client Secret is optional
+    # (public client with PKCE when empty) and must only ever live in the local .env.
+    namoid_issuer: str = ""
+    namoid_client_id: str = ""
+    namoid_client_secret: str = ""
+    namoid_redirect_uri: str = "http://localhost:8000/api/auth/namoid/callback"
+    namoid_scopes: str = "openid profile email"
+    # Optional demo mapping "namoid-email=astitva-email,..." to sign in as a seeded persona
+    namoid_user_map: str = ""
+    # Unknown NamoID users are created as Employees (Security Manager assigns other roles)
+    namoid_auto_provision: bool = True
+    frontend_url: str = "http://localhost:3000"
+
     cors_origins: str = "http://localhost:3000"
     enable_inprocess_scheduler: bool = True
     expose_dev_outbox: bool = True  # shows simulated emails/SMS in development only
+
+    @property
+    def namoid_enabled(self) -> bool:
+        return bool(self.namoid_issuer and self.namoid_client_id)
 
     @property
     def is_production(self) -> bool:

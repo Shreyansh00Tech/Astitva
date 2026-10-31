@@ -333,3 +333,76 @@ def dev_outbox(email: str, db: Session = Depends(get_db)):
                       .order_by(DevOutbox.id.desc()).limit(10)).scalars().all()
     return [{"channel": r.channel, "to": r.recipient, "subject": r.subject, "body": r.body, "at": r.created_at}
             for r in rows]
+
+
+# ------------------------------------------------------------------ NamoID Hosted Auth
+NAMOID_FLOW_COOKIE = "astitva_namoid_flow"
+NAMOID_FLOW_PATH = "/api/auth/namoid"
+
+
+@router.get("/namoid/config")
+def namoid_config():
+    """Lets the login page know whether NamoID Hosted Auth is the configured sign-in."""
+    return {"enabled": get_settings().namoid_enabled}
+
+
+@router.get("/namoid/login")
+def namoid_login(next: str | None = None):
+    from fastapi.responses import RedirectResponse
+
+    from app.services import namoid
+
+    s = get_settings()
+    try:
+        flow = namoid.start(next)
+    except svc.AuthError as e:
+        return RedirectResponse(f"{s.frontend_url}/login?namoid_error={e.code}", 303)
+    except Exception:
+        return RedirectResponse(f"{s.frontend_url}/login?namoid_error=NAMOID_UNAVAILABLE", 303)
+    resp = RedirectResponse(flow.authorize_url, 303)
+    # Lax, not Strict: NamoID's redirect back to the callback is a cross-site top-level navigation.
+    resp.set_cookie(NAMOID_FLOW_COOKIE, flow.flow_cookie, max_age=namoid.FLOW_TTL_SECONDS, httponly=True,
+                    secure=s.cookie_secure, samesite="lax", path=NAMOID_FLOW_PATH, domain=s.cookie_domain)
+    return resp
+
+
+@router.get("/namoid/callback")
+def namoid_callback(request: Request, code: str | None = None, state: str | None = None, iss: str | None = None,
+                    error: str | None = None, db: Session = Depends(get_db)):
+    import html
+    import json
+
+    from fastapi.responses import HTMLResponse, RedirectResponse
+
+    from app.services import namoid
+
+    s = get_settings()
+
+    def fail(code_: str) -> Response:
+        r = RedirectResponse(f"{s.frontend_url}/login?namoid_error={code_}", 303)
+        r.delete_cookie(NAMOID_FLOW_COOKIE, path=NAMOID_FLOW_PATH, domain=s.cookie_domain)
+        return r
+
+    if error:
+        return fail("NAMOID_DENIED" if error == "access_denied" else "NAMOID_ERROR")
+    try:
+        tokens, next_path = namoid.complete(db, request.cookies.get(NAMOID_FLOW_COOKIE), code, state, iss,
+                                            client_ip(request), request.headers.get("user-agent"))
+    except svc.AuthError as e:
+        db.rollback()
+        return fail(e.code)
+    except Exception:
+        db.rollback()
+        return fail("NAMOID_UNAVAILABLE")
+    # Session cookies are SameSite=Strict. A redirect chain that began on NamoID counts as cross-site,
+    # so finish with a same-site navigation from this page instead of an HTTP redirect.
+    target = s.frontend_url + next_path
+    target_js = json.dumps(target).replace("<", "\\u003c")
+    body = ("<!doctype html><meta charset=utf-8><title>Signing in to ASTITVA</title>"
+            f"<meta http-equiv=refresh content=\"0;url={html.escape(target)}\">"
+            f"<script>location.replace({target_js})</script>"
+            "<p style=\"font-family:system-ui;padding:2rem\">Signed in with NamoID. Redirecting...</p>")
+    resp = HTMLResponse(body, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    _set_session_cookies(resp, tokens)
+    resp.delete_cookie(NAMOID_FLOW_COOKIE, path=NAMOID_FLOW_PATH, domain=s.cookie_domain)
+    return resp

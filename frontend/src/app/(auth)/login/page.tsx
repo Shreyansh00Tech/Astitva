@@ -23,6 +23,16 @@ const DEMO = [
   ["Security Manager · Meera", "admin@nexora.example", "Risk Reviewer · Admin"],
 ];
 
+const NAMOID_ERRORS: Record<string, string> = {
+  NAMOID_DENIED: "Sign-in was cancelled on NamoID.",
+  NAMOID_STATE: "Your NamoID sign-in expired or was started in another tab. Please try again.",
+  NAMOID_EMAIL: "Your NamoID account needs a verified email address.",
+  NAMOID_NOT_LINKED: "No ASTITVA account is linked to this NamoID identity.",
+  NAMOID_ACCOUNT_INACTIVE: "This account cannot sign in.",
+  NAMOID_DISABLED: "NamoID sign-in is not configured on this server.",
+  NAMOID_UNAVAILABLE: "NamoID could not be reached. Please try again.",
+};
+
 function DevMailbox({ email, tick }: { email: string; tick: number }) {
   const [msgs, setMsgs] = useState<any[] | null>(null);
   useEffect(() => {
@@ -53,6 +63,13 @@ function LoginInner() {
   const [code, setCode] = useState("");
   const [tick, setTick] = useState(0);
   const [retryAfter, setRetryAfter] = useState(0);
+  const [namoid, setNamoid] = useState(false);
+
+  useEffect(() => {
+    api("/api/auth/namoid/config").then((r) => setNamoid(!!r?.enabled)).catch(() => setNamoid(false));
+    const code = params.get("namoid_error");
+    if (code) setError(NAMOID_ERRORS[code] ?? "NamoID sign-in did not complete. Please try again.");
+  }, [params]);
 
   useEffect(() => {
     if (retryAfter <= 0) return;
@@ -136,7 +153,19 @@ function LoginInner() {
     <div>
       <h1 className="auth-rise text-xl font-semibold tracking-tight">Sign in to ASTITVA</h1>
       <p className="mt-1 text-[13px] text-muted-foreground">Nexora Technologies workforce identity</p>
-      <form onSubmit={submitPassword} className="mt-6 space-y-4">
+      {namoid && (
+        <div className="auth-rise mt-6">
+          <a href={`/api/auth/namoid/login${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-violet text-sm font-medium text-white shadow-sm transition-colors hover:bg-violet/90">
+            <ShieldCheck className="h-4 w-4" />Continue with NamoID
+          </a>
+          <p className="mt-2 text-center text-2xs text-muted-foreground">Secure sign-in through NamoID Hosted Auth</p>
+          <div className="my-5 flex items-center gap-3 text-2xs uppercase tracking-wider text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />or demo password sign-in<span className="h-px flex-1 bg-border" />
+          </div>
+        </div>
+      )}
+      <form onSubmit={submitPassword} className={cn("space-y-4", !namoid && "mt-6")}>
         <Field label="Work email">
           <Input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="name@nexora.example" />
         </Field>

@@ -19,25 +19,33 @@ This project must use **NamoID Hosted Auth as the application's sign-in
 system**. Hosted Auth is the application's authentication system, not a
 social-login button.
 
-**Status: pending NamoID Console app.** The integration is wired in only once
-the NamoID Console application exists, so it is not claimed as working yet.
+ASTITVA's users sign in with **Continue with NamoID** on the login page.
 
-Planned setup:
+- **Application/client type:** web application. The FastAPI backend runs the
+  OpenID Connect **Authorization Code flow with PKCE (S256)**. If the NamoID app
+  has a Client Secret, the backend sends it with `client_secret_basic`; without
+  one it works as a public client with PKCE. The secret only ever lives in the
+  local `.env`.
+- **Issuer/environment:** sandbox issuer
+  `https://astitva-0efc7e.sandbox.namoid.in` (endpoints are read from its
+  `/.well-known/openid-configuration`). Set `NAMOID_ISSUER` and
+  `NAMOID_CLIENT_ID` in `.env` (see `.env.example`).
+- **Callback path:** `http://localhost:8000/api/auth/namoid/callback`. It must
+  be registered in the NamoID Console exactly like this.
+- **Validation:** `state` (CSRF), `nonce`, PKCE verifier, the RFC 9207 `iss`
+  parameter, and the ID token's RS256 signature (JWKS), issuer, audience and
+  expiry are all checked. A verified email is required.
+- **Application session:** after the callback ASTITVA maps the NamoID email to
+  its own user (directly, or through `NAMOID_USER_MAP` for the demo personas)
+  and issues its own HttpOnly, SameSite=Strict session cookies. NamoID tokens
+  are never sent to the browser or stored. New NamoID users are created as
+  Employees only; the Security Manager assigns other roles.
+- **User journey:** Login → Continue with NamoID → NamoID Hosted Auth sign-in →
+  callback → ASTITVA dashboard for that role (requester, manager, risk reviewer
+  or resource owner) → request, review, use or revoke access.
 
-- **Application/client type:** confidential web application. The FastAPI
-  backend runs the Authorization Code flow (with PKCE) and keeps the client
-  secret server-side; the browser never sees it.
-- **Issuer/environment:** `NAMOID_ISSUER`, `NAMOID_CLIENT_ID` and
-  `NAMOID_CLIENT_SECRET` come from the local `.env` (see `.env.example`).
-  Nothing real is committed.
-- **Callback path:** `http://localhost:8000/api/auth/namoid/callback` for local
-  development.
-- **Application session:** after the code exchange the backend maps the NamoID
-  identity to an ASTITVA user (requester, manager, risk reviewer or resource
-  owner) and issues ASTITVA's own HttpOnly session and refresh cookies. The
-  NamoID tokens are not stored in the browser.
-- **User journey:** Sign in → redirect to NamoID Hosted Auth → callback →
-  ASTITVA dashboard for that role → request / review / use / revoke access.
+The flow is covered by `backend/tests/test_namoid.py` (NamoID responses are
+mocked there).
 
 ## Community project metadata
 
@@ -117,9 +125,10 @@ emergency revocation, routing guardrails, risk engine and priority.
 
 ## Known limitations
 
-- **NamoID Hosted Auth is not wired in yet.** It waits for the NamoID Console
-  application values. Until then the app uses its own email + password + MFA
-  login with seeded demo accounts.
+- NamoID sign-in is tested with mocked NamoID responses. The live sandbox flow
+  must be run from a browser on a local machine. The email + password + MFA
+  login is kept as a demo fallback for the seeded accounts.
+- Signing out ends the ASTITVA session only, not the NamoID session.
 - All integrations (email, resources, AI agents) are simulated.
 - See [docs/ASTITVA-GUIDE.md](./docs/ASTITVA-GUIDE.md#known-limitations) for the
   full list.

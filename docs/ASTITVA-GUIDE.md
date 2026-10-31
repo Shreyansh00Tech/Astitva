@@ -453,10 +453,10 @@ The additional tests in `tests/test_platform.py` cover:
 ## Known limitations
 
 - **Simulated integrations.** Email, SMS and CAPTCHA are adapters with development stand-ins. Resource "access" returns mock payloads, and agent tools are simulated.
-- **No SSO/SAML/OIDC.** Federation with an external IdP and SCIM provisioning are not implemented. Users come from the seed or self-registration, and registration needs email verification.
+- **Federation.** OIDC sign-in through NamoID is implemented; SAML and SCIM provisioning are not. Users come from the seed or self-registration, and registration needs email verification.
 - **Single tenant.** The organisation switcher in the UI is presentational. The data model is single-organisation.
 - **Risk model.** The anomaly detector (IsolationForest) needs at least 12 active people, so with the 5-person demo it reports "not enough data" and adds nothing. Its behaviour with a larger population is covered by a test with synthetic users. Calibrate the weights on real data before relying on them. LLM explanations are off by default.
-- **Login.** The existing email + password + MFA login is unchanged. NamoID hosted login is not implemented: it needs the app's NamoID console details (credentials and redirect settings), which were not provided, so it has not been built or tested.
+- **Login.** NamoID Hosted Auth (OIDC Authorization Code + PKCE) is the main sign-in; see the root README. The email + password + MFA login remains as a demo fallback.
 - **Audit chain** proves integrity but not completeness against a privileged DB operator. Ship events off-box for that guarantee (see deployment).
 - **Notifications** use a Redis pub/sub fan-out. Clients that are offline catch up through the REST list, not by replaying the WebSocket stream.
 - **Tests** run against Postgres with fakeredis. Load and performance testing and frontend unit tests are not included. The UI was verified with Playwright smoke runs rather than a full end-to-end suite.

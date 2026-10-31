@@ -14,6 +14,14 @@ x-backend-env: &backend-env
   LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5-5}
   LLM_BASE_URL: ${LLM_BASE_URL:-}
   EXPOSE_DEV_OUTBOX: ${EXPOSE_DEV_OUTBOX:-true}
+  # NamoID Hosted Auth (values from your local .env; the secret is never committed)
+  NAMOID_ISSUER: ${NAMOID_ISSUER:-}
+  NAMOID_CLIENT_ID: ${NAMOID_CLIENT_ID:-}
+  NAMOID_CLIENT_SECRET: ${NAMOID_CLIENT_SECRET:-}
+  NAMOID_REDIRECT_URI: ${NAMOID_REDIRECT_URI:-http://localhost:8000/api/auth/namoid/callback}
+  NAMOID_USER_MAP: ${NAMOID_USER_MAP:-}
+  NAMOID_AUTO_PROVISION: ${NAMOID_AUTO_PROVISION:-true}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
   # Celery beat runs scheduled jobs in Docker, so the API's in-process scheduler is off
   ENABLE_INPROCESS_SCHEDULER: "false"
 

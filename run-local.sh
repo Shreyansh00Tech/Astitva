@@ -30,6 +30,10 @@ export DATABASE_URL="postgresql+psycopg://${USER}@localhost:5432/astitva"
 export REDIS_URL="redis://localhost:6379/0"
 export CORS_ORIGINS="http://localhost:3000"
 export BACKEND_URL="http://localhost:8000"
+# NamoID Hosted Auth settings come from the root .env (never committed)
+if [ -f "$ROOT/.env" ]; then
+  set -a; source <(grep -E '^(NAMOID_[A-Z_]+|FRONTEND_URL)=' "$ROOT/.env" || true); set +a
+fi
 
 # 3. Backend
 cd "$ROOT/backend"
