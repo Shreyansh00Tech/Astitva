@@ -21,8 +21,8 @@ _BASE = {
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
-    REQUESTER: set(_BASE),
-    MANAGER: _BASE | {
+    REQUESTER: _BASE | {"messages:use"},
+    MANAGER: _BASE | {"messages:use",
         "approvals:read", "approvals:act", "employees:read_team", "analytics:read", "leaderboard:read",
         "reviews:read", "reviews:act", "reviews:initiate", "drift:read", "grants:read_team", "grants:revoke_team", "dashboard:read",
     },
@@ -45,8 +45,19 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
 }
 
 
+# Internal messaging is only for employees and managers. Anyone holding a security role is kept out,
+# even though every account also carries the base REQUESTER role.
+MESSAGING_EXCLUDED_ROLES = {SECURITY_ADMIN, RISK_REVIEWER}
+
+
+def can_message(roles: list[str]) -> bool:
+    return bool({REQUESTER, MANAGER} & set(roles)) and not (MESSAGING_EXCLUDED_ROLES & set(roles))
+
+
 def permissions_for(roles: list[str]) -> set[str]:
     perms: set[str] = set()
     for r in roles:
         perms |= ROLE_PERMISSIONS.get(r, set())
+    if not can_message(roles):
+        perms.discard("messages:use")
     return perms
