@@ -1,0 +1,15 @@
+{
+  "$schema": "https://challenges.namoid.in/schemas/community-project.json",
+  "templateVersion": "1.0.0",
+  "templateMode": true,
+  "challengeId": "[challenge-id]",
+  "challengeUrl": "https://github.com/namoidhq/namoid-challenges/blob/main/challenges/[challenge-id].md",
+  "participantDisplayName": "[Contributor Name]",
+  "projectTitle": "[Project Title]",
+  "repositoryUrl": "Add your public repository URL",
+  "platformUrl": "https://namoid.in",
+  "documentationUrl": "https://docs.namoid.in",
+  "program": "NamoID Engineering Challenges",
+  "programUrl": "https://challenges.namoid.in",
+  "independentSubmission": true
+}

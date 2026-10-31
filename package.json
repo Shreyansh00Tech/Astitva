@@ -1,0 +1,14 @@
+{
+  "name": "namoid-challenge-submission",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "check": "node scripts/validate.mjs",
+    "dev": "python3 -m http.server 8080"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
