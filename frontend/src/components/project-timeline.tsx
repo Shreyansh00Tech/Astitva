@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { CalendarClock, Flag, FolderKanban, Link2, Users } from "lucide-react";
 import { fetcher } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useCountUp, useMounted } from "@/lib/motion";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Avatar, EmptyState, Skeleton } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,8 @@ function ProjectCard({ d, self }: { d: any; self: boolean }) {
   const p = d.project;
   const timed = d.grants.filter((g: any) => g.status === "ACTIVE");
   const inside = timed.filter((g: any) => g.within_project).length;
+  const mounted = useMounted();
+  const pct = useCountUp(Math.round((p.progress ?? 0) * 100));
   return (
     <Card className={BOX}>
       <CardHeader title={<span className="inline-flex items-center gap-1.5"><FolderKanban className="h-4 w-4 text-violet" />Current project</span>}
@@ -30,8 +33,9 @@ function ProjectCard({ d, self }: { d: any; self: boolean }) {
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          {[["Start", p.start_date, null], ["Submission due", p.submission_date, p.days_to_submission], ["Project end", p.end_date, p.days_to_end]].map(([k, v, n]) => (
-            <div key={k as string} className={cn("rounded-md border px-2.5 py-2", k === "Submission due" && "border-warning/30 bg-warning/5")}>
+          {[["Start", p.start_date, null], ["Submission due", p.submission_date, p.days_to_submission], ["Project end", p.end_date, p.days_to_end]].map(([k, v, n], i) => (
+            <div key={k as string} className={cn("ov-rise relative rounded-md border px-2.5 py-2", k === "Submission due" && "border-warning/30 bg-warning/5")} style={{ animationDelay: `${i * 90}ms` }}>
+              {k === "Submission due" && <span aria-hidden className="ov-soft-pulse pointer-events-none absolute -inset-px rounded-md border border-warning/40" />}
               <div className="text-2xs text-muted-foreground">{k}</div>
               <div className="text-sm font-semibold tabular">{short(v as string)}</div>
               {n != null && <div className={cn("text-2xs", k === "Submission due" ? "text-warning" : "text-muted-foreground")}>{inDays(n as number)}</div>}
@@ -41,8 +45,8 @@ function ProjectCard({ d, self }: { d: any; self: boolean }) {
 
         {p.progress != null && (
           <div>
-            <div className="mb-1 flex justify-between text-2xs text-muted-foreground"><span>Time elapsed</span><span className="tabular">{Math.round(p.progress * 100)}%</span></div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-violet" style={{ width: `${p.progress * 100}%` }} /></div>
+            <div className="mb-1 flex justify-between text-2xs text-muted-foreground"><span>Time elapsed</span><span className="tabular">{Math.round(pct)}%</span></div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="ov-bar h-full rounded-full bg-violet" style={{ width: mounted ? `${p.progress * 100}%` : 0 }} /></div>
             <div className="mt-1 text-2xs text-muted-foreground">{self ? "Your tasks" : "Tasks"}: {p.tasks.done} done · {p.tasks.open} open</div>
           </div>
         )}
@@ -50,8 +54,8 @@ function ProjectCard({ d, self }: { d: any; self: boolean }) {
         <div className="min-h-0 flex-1">
           <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground"><Users className="h-3.5 w-3.5" />Team · {d.team.length}</div>
           <div className="max-h-full space-y-1.5 overflow-y-auto scroll-thin pr-1">
-            {d.team.map((m: any) => (
-              <div key={m.id} className="flex items-center gap-2">
+            {d.team.map((m: any, i: number) => (
+              <div key={m.id} className="ov-slide flex items-center gap-2" style={{ animationDelay: `${300 + i * 90}ms` }}>
                 <Avatar name={m.name} className="h-6 w-6" />
                 <div className="min-w-0 flex-1 truncate text-[13px]">{m.name}{m.is_me && self && <span className="text-muted-foreground"> (you)</span>}<span className="text-2xs text-muted-foreground"> · {m.designation}</span></div>
                 <Badge tone={m.role === "Project Manager" ? "violet" : m.role === "Security Reviewer" ? "critical" : "outline"}>{m.role}</Badge>

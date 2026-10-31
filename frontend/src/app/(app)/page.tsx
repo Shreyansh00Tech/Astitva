@@ -11,6 +11,7 @@ import { ErrorState, PageHeader, Skeleton } from "@/components/ui/misc";
 import { StatTile } from "@/components/stat";
 import { AreaSeries, HBars, LinesChart, StackedBars, STATUS_KEY } from "@/components/charts";
 import { Button } from "@/components/ui/button";
+import { ActiveAccessCard } from "@/components/active-access-card";
 import { ProjectAccessBoxes } from "@/components/project-timeline";
 
 const FEED_ICON: Record<string, any> = {
@@ -34,10 +35,8 @@ function Personal({ data }: { data: any }) {
         <StatTile label="Expiring < 24h" value={m.expiring_soon} icon={Hourglass} tone={m.expiring_soon ? "warning" : "default"} href="/active-access" />
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card><CardHeader title="Daily work activity" description="Recorded task events, last 30 days" /><CardBody><AreaSeries data={data.charts.daily_activity} x="date" y="events" /></CardBody></Card>
-        <Card><CardHeader title="Access outcomes" description="Gateway decisions on your purpose-bound tokens" /><CardBody>
-          <StackedBars data={data.charts.access_outcomes} x="week" series={[{ key: "allowed", label: "Allowed", color: "status-good" }, { key: "denied", label: "Denied", color: "status-critical" }]} />
-        </CardBody></Card>
+        <Card className="lg:h-[330px]"><CardHeader title="Daily work activity" description="Recorded task events, last 30 days" /><CardBody><AreaSeries data={data.charts.daily_activity} x="date" y="events" height={240} /></CardBody></Card>
+        <ActiveAccessCard className="h-[330px]" />
       </div>
       <div className="mt-4"><ProjectAccessBoxes endpoint="/api/me/project-timeline" /></div>
     </>
