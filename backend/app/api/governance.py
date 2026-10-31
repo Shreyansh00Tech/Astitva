@@ -515,6 +515,8 @@ def agent_set_permission(agent_id: str, body: AgentPermIn, cu: CurrentUser = Dep
             p = AgentPermission(agent_id=a.id, resource_id=res.id, permissions=[])
             db.add(p)
         p.permissions = sort_perms(body.permissions)
+        p.revoked_at = None  # re-granting after a dependency-graph revocation
+        p.revoked_by_id = None
         p.expires_at = utcnow() + timedelta(days=body.expires_in_days) if body.expires_in_days else None
     audit.record(db, cu.actor, "AGENT_PERMISSION_CHANGED", resource_id=res.id, target_type="AGENT", target_id=a.code,
                  previous_state={"permissions": prev}, new_state={"permissions": body.permissions})

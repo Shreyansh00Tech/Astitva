@@ -8,7 +8,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
   Activity, Bell, Bot, Building2, Check, ChevronsUpDown, ClipboardCheck, Database, FileClock, Gauge, KeyRound, LogOut,
-  Menu, Monitor, Moon, ScrollText, Search, Settings, ShieldAlert, Siren, Sun, TrendingUp, Users, X, Inbox,
+  Menu, Monitor, Moon, Network, ScrollText, Search, Settings, ShieldAlert, Siren, Sun, TrendingUp, Users, X, Inbox,
 } from "lucide-react";
 import { api, fetcher } from "@/lib/api";
 import { primaryRole, ROLE_LABEL, useSession } from "@/lib/session";
@@ -31,6 +31,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   ]},
   { section: "Security", items: [
     { href: "/ai-security", label: "AI Security Center", icon: Bot, perm: ["agents:read"] },
+    { href: "/dependency-graph", label: "Dependency Graph", icon: Network, perm: ["graph:read"] },
     { href: "/drift", label: "Permission Drift", icon: TrendingUp, perm: ["drift:read"] },
     { href: "/emergency", label: "Emergency Access", icon: Siren, perm: ["emergency:request"] },
     { href: "/audit", label: "Audit & Compliance", icon: ScrollText, perm: ["audit:read", "alerts:read"] },

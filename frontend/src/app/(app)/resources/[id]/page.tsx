@@ -4,7 +4,8 @@ import Link from "next/link";
 import { use, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { ArrowLeft, Settings2 } from "lucide-react";
+import { ArrowLeft, Network, Settings2 } from "lucide-react";
+import { useSession } from "@/lib/session";
 import { api, errorMessage, fetcher } from "@/lib/api";
 import { fmtDate, titleCase } from "@/lib/utils";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -50,6 +51,7 @@ function PolicyEditor({ r, onSaved }: { r: any; onSaved: () => void }) {
 export default function ResourceDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: r, error, mutate } = useSWR(`/api/resources/${id}`, fetcher);
+  const { can } = useSession();
   if (error) return <ErrorState error={error} onRetry={() => mutate()} />;
   if (!r) return <Skeleton className="h-96" />;
   return (
@@ -60,7 +62,10 @@ export default function ResourceDetail({ params }: { params: Promise<{ id: strin
           <div className="flex items-center gap-2"><h1 className="text-xl font-semibold tracking-tight">{r.name}</h1><SensitivityBadge level={r.sensitivity} /></div>
           <p className="mt-1 text-[13px] text-muted-foreground"><span className="font-mono">{r.code}</span> · {titleCase(r.type)} · {r.department} · {r.description}</p>
         </div>
-        {r.can_manage && <PolicyEditor r={r} onSaved={() => mutate()} />}
+        <div className="flex flex-wrap gap-2">
+          {can("graph:read") && <Button variant="outline" asChild><Link href={`/dependency-graph?resource=${r.id}`}><Network />Dependency graph</Link></Button>}
+          {r.can_manage && <PolicyEditor r={r} onSaved={() => mutate()} />}
+        </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="h-fit">

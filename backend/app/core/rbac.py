@@ -25,6 +25,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     MANAGER: _BASE | {
         "approvals:read", "approvals:act", "employees:read_team", "analytics:read", "leaderboard:read",
         "reviews:read", "reviews:act", "reviews:initiate", "drift:read", "grants:read_team", "grants:revoke_team", "dashboard:read",
+        "graph:read",
     },
     RISK_REVIEWER: _BASE | {
         "approvals:read", "approvals:act", "risk:read", "alerts:read", "alerts:manage", "requests:read_all",
@@ -40,7 +41,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         "policies:manage", "resources:manage_all", "grants:read_all", "grants:revoke_any", "drift:read",
         "drift:act", "drift:scan", "emergency:monitor", "emergency:revoke", "emergency:review", "audit:read",
         "audit:verify", "audit:export", "agents:read", "agents:manage", "reviews:read", "reviews:initiate",
-        "dashboard:read", "settings:manage",
+        "dashboard:read", "settings:manage", "graph:read",
     },
 }
 

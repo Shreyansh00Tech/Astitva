@@ -160,3 +160,17 @@
   .auth-card button[type="submit"]::after { display: none; }
   .auth-card button[type="submit"]:hover { transform: none; }
 }
+
+/* Access dependency graph */
+@keyframes graph-flow { to { stroke-dashoffset: -20; } }
+@keyframes graph-pulse { 0%, 100% { box-shadow: 0 0 0 0 hsl(var(--critical) / .35); } 50% { box-shadow: 0 0 0 5px hsl(var(--critical) / 0); } }
+@keyframes graph-pop { 0% { transform: scale(.94); } 55% { transform: scale(1.04); } 100% { transform: scale(1); } }
+@layer components {
+  .graph-flow { stroke-dasharray: 6 4; animation: graph-flow 1.1s linear infinite; }
+  .graph-flow-fast { stroke-dasharray: 6 4; animation: graph-flow .45s linear infinite; }
+  .graph-pulse { animation: graph-pulse 1.2s ease-in-out infinite; }
+  .graph-pop { animation: graph-pop .5s cubic-bezier(.22,1,.36,1) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-flow, .graph-flow-fast, .graph-pulse, .graph-pop { animation: none; }
+}

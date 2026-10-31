@@ -585,7 +585,32 @@ class AgentPermission(Base):
     permissions: Mapped[list] = mapped_column(JSON)
     expires_at: Mapped[datetime | None] = mapped_column(TS)
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    # Set when the permission is cut from the dependency graph; the gateway then denies every call.
+    revoked_at: Mapped[datetime | None] = mapped_column(TS)
+    revoked_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     __table_args__ = (UniqueConstraint("agent_id", "resource_id", name="uq_agent_resource"),)
+
+
+# ---------------------------------------------------------------- dependency graph
+class ResourceDependency(Base, TimestampMixin):
+    """A simulated service link: something that consumes `resource_id` (the upstream model, dataset or database).
+
+    Either an internal API / service endpoint (name + endpoint, no registry entry) or another registered resource
+    (`dependent_resource_id`), e.g. a training dataset feeding a model. Used by the access dependency graph to show
+    the blast radius of a revocation. Suspending a link marks the API as cut off from the upstream resource."""
+
+    __tablename__ = "resource_dependencies"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    dependent_resource_id: Mapped[str | None] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(16))  # API | FEED | TRAINING_DATA
+    endpoint: Mapped[str | None] = mapped_column(String(160))
+    criticality: Mapped[str] = mapped_column(String(10), default="MEDIUM")  # LOW | MEDIUM | HIGH | CRITICAL
+    description: Mapped[str | None] = mapped_column(Text)
+    suspended_at: Mapped[datetime | None] = mapped_column(TS)
+    suspended_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    suspend_reason: Mapped[str | None] = mapped_column(Text)
 
 
 # ---------------------------------------------------------------- notifications
