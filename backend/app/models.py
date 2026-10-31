@@ -632,3 +632,32 @@ class Notification(Base):
     severity: Mapped[str] = mapped_column(String(10), default="INFO")
     read_at: Mapped[datetime | None] = mapped_column(TS)
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, index=True)
+
+
+# ---------------------------------------------------------------- internal messaging
+class Conversation(Base):
+    """A private 1:1 chat between two employees/managers. pair_key keeps one conversation per pair."""
+
+    __tablename__ = "conversations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    pair_key: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    last_message_at: Mapped[datetime | None] = mapped_column(TS, index=True)
+
+
+class ConversationParticipant(Base):
+    __tablename__ = "conversation_participants"
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    last_read_at: Mapped[datetime | None] = mapped_column(TS)
+    joined_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    sender_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+    __table_args__ = (Index("ix_chat_messages_conv_created", "conversation_id", "created_at"),)

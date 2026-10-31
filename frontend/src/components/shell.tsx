@@ -8,11 +8,12 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
   Activity, Bell, Bot, Building2, Check, ChevronsUpDown, ClipboardCheck, Database, FileClock, Gauge, KeyRound, LogOut,
-  Menu, Monitor, Moon, Network, ScrollText, Search, Settings, ShieldAlert, Siren, Sun, TrendingUp, Users, X, Inbox,
+  Menu, MessagesSquare, Monitor, Moon, Network, ScrollText, Search, Settings, ShieldAlert, Siren, Sun, TrendingUp, Users, X, Inbox,
 } from "lucide-react";
 import { api, fetcher } from "@/lib/api";
 import { primaryRole, ROLE_LABEL, useSession } from "@/lib/session";
 import { cn, relTime } from "@/lib/utils";
+import { useChatEvents } from "@/lib/chat";
 import { Wordmark } from "./logo";
 import { Avatar, Skeleton } from "./ui/misc";
 import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from "./ui/dropdown";
@@ -28,6 +29,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     { href: "/employees", label: "Employee Intelligence", icon: Users, perm: ["employees:read_team", "employees:read_all"] },
     { href: "/active-access", label: "Active Access", icon: KeyRound },
     { href: "/resources", label: "Resource Registry", icon: Database, perm: ["resources:read"] },
+    { href: "/messages", label: "Messages", icon: MessagesSquare, perm: ["messages:use"], badgeKey: "messages" },
   ]},
   { section: "Security", items: [
     { href: "/ai-security", label: "AI Security Center", icon: Bot, perm: ["agents:read"] },
@@ -46,6 +48,10 @@ const NAV: { section: string; items: NavItem[] }[] = [
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const path = usePathname();
   const { can } = useSession();
+  const chat = can("messages:use");
+  const { data: unread, mutate: refreshUnread } = useSWR(chat ? "/api/messages/unread" : null, fetcher, { refreshInterval: 30000 });
+  useChatEvents(() => refreshUnread(), chat);
+  const badges: Record<string, number> = { messages: unread?.unread || 0 };
   return (
     <nav className="flex h-full flex-col">
       <div className="flex h-14 items-center px-4"><Wordmark /></div>
@@ -66,6 +72,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                       {active && <span className="absolute -left-2.5 h-4 w-0.5 rounded-r bg-violet" />}
                       <i.icon className={cn("h-4 w-4", active ? "text-violet" : "")} />
                       {i.label}
+                      {i.badgeKey && badges[i.badgeKey] > 0 && (
+                        <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-violet px-1.5 text-[10px] font-semibold text-white tabular shadow-sm"
+                          aria-label={`${badges[i.badgeKey]} unread`}>{badges[i.badgeKey] > 99 ? "99+" : badges[i.badgeKey]}</span>
+                      )}
                     </Link>
                   );
                 })}
