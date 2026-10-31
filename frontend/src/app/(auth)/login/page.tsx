@@ -63,10 +63,10 @@ function LoginInner() {
   const [code, setCode] = useState("");
   const [tick, setTick] = useState(0);
   const [retryAfter, setRetryAfter] = useState(0);
-  const [namoid, setNamoid] = useState(false);
+  const [namoid, setNamoid] = useState(true);
 
   useEffect(() => {
-    api("/api/auth/namoid/config").then((r) => setNamoid(!!r?.enabled)).catch(() => setNamoid(false));
+    api("/api/auth/namoid/config").then((r) => setNamoid(!!r?.enabled)).catch(() => setNamoid(true));
     const code = params.get("namoid_error");
     if (code) setError(NAMOID_ERRORS[code] ?? "NamoID sign-in did not complete. Please try again.");
   }, [params]);

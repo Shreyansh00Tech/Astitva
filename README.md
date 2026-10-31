@@ -26,7 +26,7 @@ ASTITVA's users sign in with **Continue with NamoID** on the login page.
   has a Client Secret, the backend sends it with `client_secret_basic`; without
   one it works as a public client with PKCE. The secret only ever lives in the
   local `.env`.
-- **Issuer/environment:** sandbox issuer
+- **Issuer/environment:** sandbox issuer (also the built-in default, so it works without a `.env`)
   `https://astitva-0efc7e.sandbox.namoid.in` (endpoints are read from its
   `/.well-known/openid-configuration`). Set `NAMOID_ISSUER` and
   `NAMOID_CLIENT_ID` in `.env` (see `.env.example`).

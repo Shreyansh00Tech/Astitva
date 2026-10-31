@@ -51,8 +51,9 @@ class Settings(BaseSettings):
     # NamoID Hosted Auth (OpenID Connect, Authorization Code + PKCE S256).
     # Issuer and Client ID come from the NamoID Console. The Client Secret is optional
     # (public client with PKCE when empty) and must only ever live in the local .env.
-    namoid_issuer: str = ""
-    namoid_client_id: str = ""
+    # Public (non-secret) values of the sandbox app, so sign-in works without a .env.
+    namoid_issuer: str = "https://astitva-0efc7e.sandbox.namoid.in"
+    namoid_client_id: str = "namoid_client_test_o2cLBiO3v9pcfKb2os5nn4ORagvF5RdI"
     namoid_client_secret: str = ""
     namoid_redirect_uri: str = "http://localhost:8000/api/auth/namoid/callback"
     namoid_scopes: str = "openid profile email"
