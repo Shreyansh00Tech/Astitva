@@ -98,7 +98,7 @@ RESOURCES = [
     ("RES-FIN-001", "Financial Risk Prediction Model", "AI_MODEL", "FIN", "RESTRICTED", ["READ", "EXECUTE", "WRITE", "ADMIN"],
      ["MODEL_TESTING", "MODEL_TRAINING", "ANALYTICS_REPORTING", "COMPLIANCE_AUDIT"], [], 72, False, "admin", None,
      "Gradient-boosted credit and market risk model used for quarterly exposure forecasts."),
-    ("RES-FIN-002", "Customer Transaction Dataset", "DATASET", "FIN", "CONFIDENTIAL", ["READ", "WRITE", "DELETE", "ADMIN"],
+    ("RES-FIN-002", "Customer Transaction Dataset", "DATASET", "FIN", "CONFIDENTIAL", ["READ", "EXECUTE", "WRITE", "DELETE", "ADMIN"],
      ["ANALYTICS_REPORTING", "FRAUD_INVESTIGATION", "COMPLIANCE_AUDIT", "MODEL_TRAINING"], [], 168, False, "admin", None,
      "Pseudonymised card and wallet transactions (synthetic) for analytics and fraud research."),
     ("RES-HR-001", "HR Employee Database", "DATABASE", "HR", "RESTRICTED", ["READ", "WRITE", "DELETE", "ADMIN"],
@@ -116,12 +116,18 @@ RESOURCES = [
     ("RES-ENG-002", "Development Database", "DATABASE", "ENG", "INTERNAL", ["READ", "WRITE", "DELETE", "ADMIN"],
      ["FEATURE_DEVELOPMENT", "FRONTEND_TESTING", "DATA_MIGRATION", "INCIDENT_RESPONSE"], [], 336, True, "admin", None,
      "Shared PostgreSQL development cluster with masked data."),
-    ("RES-DS-003", "Customer Support AI Dataset", "DATASET", "DS", "CONFIDENTIAL", ["READ", "WRITE", "DELETE"],
+    ("RES-DS-003", "Customer Support AI Dataset", "DATASET", "DS", "CONFIDENTIAL", ["READ", "EXECUTE", "WRITE", "DELETE"],
      ["CUSTOMER_SUPPORT", "MODEL_TRAINING", "ANALYTICS_REPORTING"], [], 168, False, "admin", None,
      "Redacted support transcripts used to fine-tune the support assistant."),
     ("RES-FIN-003", "Finance Ledger Database", "DATABASE", "FIN", "CRITICAL", ["READ", "WRITE", "DELETE", "ADMIN"],
      ["COMPLIANCE_AUDIT", "ANALYTICS_REPORTING", "INCIDENT_RESPONSE"], ["FIN", "SEC"], 24, True, "admin", None,
      "General ledger and payments reconciliation database (the 'Financial Database')."),
+    ("RES-FIN-004", "Loan Approval Model", "AI_MODEL", "FIN", "RESTRICTED", ["READ", "EXECUTE", "WRITE", "ADMIN"],
+     ["MODEL_TESTING", "COMPLIANCE_AUDIT", "ANALYTICS_REPORTING"], [], 72, False, "admin", None,
+     "Retail loan pre-screening scorecard (simulated; never used for real lending decisions)."),
+    ("RES-DS-004", "Fraud Investigation Dataset", "DATASET", "DS", "RESTRICTED", ["READ", "EXECUTE", "WRITE", "DELETE", "ADMIN"],
+     ["FRAUD_INVESTIGATION", "INCIDENT_RESPONSE", "COMPLIANCE_AUDIT"], [], 72, False, "admin", None,
+     "Synthetic fraud case files linking alerts, investigations and outcomes."),
 ]
 
 BASELINE_PROFILES = {
@@ -722,12 +728,38 @@ def reset_schema():
     command.upgrade(cfg, "head")
 
 
+def ensure_catalog(db) -> int:
+    """Bring an existing database up to the current resource list without touching grants or history:
+    adds resources that are missing and any newly offered permissions. Returns how many resources were added."""
+    owner = db.execute(select(User).where(User.email == f"{DEMO_EMAILS['admin']}@{DOMAIN}")).scalar_one_or_none()
+    added = 0
+    for code, name, typ, dept, sens, perms, purposes, depts, max_h, bg, _owner, _backup, desc in RESOURCES:
+        r = db.execute(select(Resource).where(Resource.code == code)).scalar_one_or_none()
+        if r:
+            missing = [p for p in perms if p not in (r.available_permissions or [])]
+            if missing:
+                r.available_permissions = [p for p in perms if p in set(r.available_permissions or []) | set(missing)]
+            continue
+        d = db.execute(select(Department).where(Department.code == dept)).scalar_one_or_none()
+        if not owner or not d:
+            continue
+        db.add(Resource(code=code, name=name, resource_type=typ, department_id=d.id, sensitivity=sens,
+                        available_permissions=perms, allowed_purposes=purposes, allowed_departments=depts,
+                        max_duration_hours=max_h, breakglass_allowed=bg, owner_id=owner.id, description=desc,
+                        requires_risk_review=sens not in ("PUBLIC", "INTERNAL")))
+        added += 1
+    db.commit()
+    return added
+
+
 def run(reset: bool = False, clean: bool = False):
     if reset:
         reset_schema()
     with SessionLocal() as db:
         if db.execute(select(User).limit(1)).first():
-            print("Database already seeded. Use --reset to recreate.")
+            added = ensure_catalog(db)
+            print("Database already seeded. Use --reset to recreate."
+                  + (f" Added {added} new mock resource(s) to the registry." if added else ""))
             return
         s = Seeder(db)
         if clean:

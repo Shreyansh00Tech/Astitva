@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { Copy, Eye, FlaskConical, KeyRound, ShieldX, Timer } from "lucide-react";
+import { Copy, Eye, FlaskConical, KeyRound, LayoutPanelLeft, ShieldX, Timer } from "lucide-react";
 import { api, errorMessage, fetcher } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { cn, duration, fmtDate } from "@/lib/utils";
@@ -112,7 +113,7 @@ export default function ActiveAccess() {
               {data.map((g: any) => (
                 <TR key={g.id}>
                   {scope !== "mine" && <TD className="whitespace-nowrap font-medium">{g.user.name}</TD>}
-                  <TD><div className="flex items-center gap-1.5 whitespace-nowrap">{g.resource.name}{g.is_emergency && <BreakGlassBadge />}</div><SensitivityBadge level={g.resource.sensitivity} /></TD>
+                  <TD><div className="flex items-center gap-1.5 whitespace-nowrap">{g.user.id === me?.id && g.status === "ACTIVE" ? <Link href={`/active-access/${g.resource.id}`} className="font-medium hover:text-violet hover:underline">{g.resource.name}</Link> : g.resource.name}{g.is_emergency && <BreakGlassBadge />}</div><SensitivityBadge level={g.resource.sensitivity} /></TD>
                   <TD><Perms perms={g.permissions} /></TD>
                   <TD className="text-muted-foreground">{g.purpose_label}</TD>
                   <TD>{g.token_hint ? <Mono className="text-violet">{g.token_hint}</Mono> : <span className="text-2xs text-muted-foreground">{g.source === "LEGACY" ? "standing (no token)" : "—"}</span>}</TD>
@@ -121,6 +122,7 @@ export default function ActiveAccess() {
                   <TD><StatusBadge status={g.status} />{g.status === "REVOKED" && (g.revoked_by || g.revoke_reason) && <div className="mt-1 max-w-[180px] text-2xs text-muted-foreground">{g.revoked_by ? `by ${g.revoked_by.name.split(" ")[0]}` : ""}{g.revoke_reason ? ` · ${g.revoke_reason}` : ""}</div>}</TD>
                   <TD className="text-right">
                     <div className="flex justify-end gap-1">
+                      {g.user.id === me?.id && g.status === "ACTIVE" && <Button size="sm" asChild><Link href={`/active-access/${g.resource.id}`}><LayoutPanelLeft />Open</Link></Button>}
                       {g.user.id === me?.id && g.status === "ACTIVE" && g.token_hint && <Button size="sm" variant="outline" onClick={() => setTokenFor(g)}><Eye />Token</Button>}
                       {g.status === "ACTIVE" && g.can_manage && <Button size="sm" variant="outline" className="text-critical" onClick={() => setRevoke(g)}><ShieldX />{g.user.id === me?.id ? "Remove" : "Revoke"}</Button>}
                     </div>
