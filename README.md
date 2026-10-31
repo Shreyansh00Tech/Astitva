@@ -122,6 +122,11 @@ Nexora Technologies models, datasets and databases.
 - Grants **expire automatically**; extensions need a new request (no silent
   extension). Managers and the security manager can **revoke** fully or drop
   single permissions; emergency (break-glass) access is monitored and revocable.
+- **Access dependency graph** (Manager and Security Manager only): pick a model
+  and see every user, AI agent and API that depends on it, including indirect
+  impact through downstream APIs. Revoke from the graph and compare **before /
+  after**. A manager can only cut their own team's grants; agents and API links
+  need the security manager. API links are simulated.
 - **Separation of duties:** nobody approves their own request.
 - **Access ends with the project:** every request is linked to the requester's
   current project, and a grant never outlives the project end date (asked for

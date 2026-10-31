@@ -292,6 +292,22 @@ The schema has 33 normalized tables. It is defined in `backend/app/models.py`. M
 - `audit_events.hash` is SHA-256 over the event's fields plus `prev_hash`.
 - `audit_chain_head` is locked `FOR UPDATE` on every append, so the chain stays linear even with concurrent writers.
 
+### Access dependency graph
+
+`GET /api/resources/{id}/dependency-graph` returns the blast radius of a resource: users with active grants,
+AI agents with agent permissions, and simulated API / service links (`resource_dependencies`). When a dependent is
+itself a registered resource (for example the Internal Analytics API fed by the Fraud model), its own users, agents
+and APIs are returned as `INDIRECT` (depth 2). Items revoked in the last 24 hours stay in the graph as `REVOKED`, so the
+UI can show the state after a revocation.
+
+`POST /api/resources/{id}/revoke-access` (`reason`, `users`, `agents`, `services`, optional `node_ids`) revokes from the
+graph: grants and their tokens (ending break-glass sessions), agent permissions (`revoked_at`, enforced by the agent
+gateway) and API links (`suspended_at`). `POST /api/dependencies/{id}/restore` reconnects a link.
+
+Only roles with `graph:read` (Manager, Security Manager) can call these. A Manager sees their own team by name, others
+are grouped, and can only revoke their team's grants. Agents and API links need the Security Manager. Every action is
+audited (`RESOURCE_ACCESS_REVOKED`, `AGENT_PERMISSION_REVOKED`, `SERVICE_LINK_SUSPENDED`, `SERVICE_LINK_RESTORED`).
+
 ## API
 
 There are 85 REST endpoints plus one WebSocket. Interactive docs are at **http://localhost:8000/docs**.

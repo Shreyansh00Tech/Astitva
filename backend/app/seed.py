@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import pyotp
 from sqlalchemy import select, text
 
+from app.core.dependency_catalog import DEFAULT_DEPENDENCIES
 from app.core.context import SYSTEM, Actor
 from app.core.db import Base, SessionLocal, engine
 from app.core.rbac import ALL_ROLES, MANAGER, REQUESTER, RESOURCE_OWNER, RISK_REVIEWER, ROLE_DESCRIPTIONS, SECURITY_ADMIN
@@ -35,6 +36,7 @@ from app.models import (
     ProjectMember,
     Resource,
     ResourceAccessEvent,
+    ResourceDependency,
     Role,
     SecurityAlert,
     Task,
@@ -242,6 +244,11 @@ class Seeder:
             self.q(ago(420), SYSTEM, "RESOURCE_REGISTERED", resource_id=r.id, target_type="RESOURCE", target_id=code,
                    new_state={"sensitivity": sens, "owner": self.users[owner].full_name})
         db = self.db
+        # Simulated service links (APIs and data feeds) used by the access dependency graph.
+        for up, down, name, kind, endpoint, crit, desc in DEFAULT_DEPENDENCIES:
+            db.add(ResourceDependency(resource_id=self.res[up].id, dependent_resource_id=self.res[down].id if down else None,
+                                      name=name, kind=kind, endpoint=endpoint, criticality=crit, description=desc))
+        db.flush()
         admin = self.users["admin"]
         db.add_all([
             Policy(name="Manager and security approval by different people", policy_type="SOD", created_by_id=admin.id,

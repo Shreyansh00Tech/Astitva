@@ -98,4 +98,5 @@ def agent_out(a: AiAgent, resources: dict[str, Resource] | None = None) -> dict:
     return {"id": a.id, "code": a.code, "name": a.name, "purpose": a.purpose, "owner": user_brief(a.owner),
             "status": a.status, "risk_score": a.risk_score, "allowed_tools": a.allowed_tools, "expires_at": a.expires_at,
             "permissions": [{"id": p.id, "resource": resource_brief(resources.get(p.resource_id)) if resources else p.resource_id,
-                             "permissions": p.permissions, "expires_at": p.expires_at} for p in a.permissions]}
+                             "permissions": p.permissions, "expires_at": p.expires_at} for p in a.permissions
+                            if p.revoked_at is None]}

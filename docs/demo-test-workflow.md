@@ -140,6 +140,20 @@ Ye **Meera** (kisi ka bhi) aur **Priya** (apni team ka) kar sakti hain. Employee
 5. Ye request page se bhi ho sakta hai: request kholo, right side mein **Remove permissions / revoke** button hai.
 6. `kavya.reddy` se login karo. Bell mein notification aayega. Access Requests list mein "Access revoked" dikhega, aur request page ke stepper mein laal "Access revoked · By Priya".
 
+## Test 5b: Access Dependency Graph (model revoke karne se pehle impact dekho)
+
+Sirf **Priya** (Manager) aur **Meera** (Security Manager) ko dikhta hai. Employee ko sidebar mein ye page nahi milega, aur API bhi 403 dega.
+
+1. `admin` (Meera) se login karo, sidebar mein **Security → Dependency Graph** kholo. (Resource Registry mein kisi resource pe **Dependency graph** button se bhi aa sakte ho.)
+2. Left list se **Fraud Detection Model** chuno. Graph mein dikhega:
+   - **Directly affected:** jinke paas model ka access hai (users), AI agents, aur APIs jo model use karti hain (jaise Payments Fraud Scoring API).
+   - **Indirectly affected:** Internal Analytics API ke users aur Developer AI Agent, kyunki wo API is model se data leti hai.
+3. **Revoke access…** dabao. Users, AI agents aur API links tick karo. Confirm karne se pehle graph mein jo kuch band hoga wo laal blink karega, aur upar count dikhega (kitne users, tokens, agents, APIs, aur kitne indirectly degraded).
+4. Chaho to graph mein nodes pe click karke sirf kuch chuno (checkbox).
+5. Reason likho aur **Confirm revoke** dabao. Graph turant badlega: revoked user laal, API "Cut off", aur indirect wale "Degraded". **Before / After** toggle se dono compare karo.
+6. Neeche **Reconnect** button se cut ki hui API wapas jod sakte ho. Agent ko wapas permission AI Security Center se milti hai.
+7. `priya.desai` se same page kholo: sirf apni team ke log naam se dikhenge, baaki "N users in other teams" mein group honge. Priya sirf apni team ka access hata sakti hai, agents aur APIs nahi.
+
 ## Security Manager (Meera) aur kya dekh sakti hai
 
 - **Overview:** pending requests, active access, alerts aur charts.
