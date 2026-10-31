@@ -15,12 +15,15 @@ CHANNEL = "astitva:notifications"
 
 
 def notify(db: Session, user_id: str, kind: str, title: str, body: str, link: str | None = None,
-           severity: str = "INFO") -> Notification:
+           severity: str = "INFO", event: str | None = None) -> Notification:
+    """`event` is a live-push hint only (not stored), e.g. "alert:BREAKGLASS" so the UI can play a sound."""
     n = Notification(user_id=user_id, kind=kind, title=title, body=body, link=link, severity=severity)
     db.add(n)
     db.flush()
-    db.info.setdefault("astitva_pending_pub", []).append({"user_id": user_id, "id": n.id, "kind": kind,
-                                                          "title": title, "severity": severity})
+    pub = {"user_id": user_id, "id": n.id, "kind": kind, "title": title, "severity": severity}
+    if event:
+        pub["event"] = event
+    db.info.setdefault("astitva_pending_pub", []).append(pub)
     return n
 
 
@@ -32,11 +35,11 @@ def users_with_role(db: Session, role: str) -> list[User]:
 
 
 def notify_role(db: Session, role: str, kind: str, title: str, body: str, link: str | None = None,
-                severity: str = "INFO", exclude: set[str] | None = None) -> None:
+                severity: str = "INFO", exclude: set[str] | None = None, event: str | None = None) -> None:
     for u in users_with_role(db, role):
         if exclude and u.id in exclude:
             continue
-        notify(db, u.id, kind, title, body, link, severity)
+        notify(db, u.id, kind, title, body, link, severity, event=event)
 
 
 def raise_alert(db: Session, severity: str, category: str, title: str, description: str, *,
@@ -48,7 +51,7 @@ def raise_alert(db: Session, severity: str, category: str, title: str, descripti
     db.flush()
     if notify_admins:
         notify_role(db, SECURITY_ADMIN, "SECURITY_ALERT", title, description, "/audit?tab=alerts",
-                    severity if severity in ("HIGH", "CRITICAL") else "WARNING")
+                    severity if severity in ("HIGH", "CRITICAL") else "WARNING", event=f"alert:{category}")
     return a
 
 
