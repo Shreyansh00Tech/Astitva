@@ -35,11 +35,17 @@ ASTITVA's users sign in with **Continue with NamoID** on the login page.
 - **Validation:** `state` (CSRF), `nonce`, PKCE verifier, the RFC 9207 `iss`
   parameter, and the ID token's RS256 signature (JWKS), issuer, audience and
   expiry are all checked. A verified email is required.
-- **Application session:** after the callback ASTITVA maps the NamoID email to
-  its own user (directly, or through `NAMOID_USER_MAP` for the demo personas)
-  and issues its own HttpOnly, SameSite=Strict session cookies. NamoID tokens
-  are never sent to the browser or stored. New NamoID users are created as
-  Employees only; the Security Manager assigns other roles.
+- **Roles come from NamoID.** Assign each user a role in the NamoID Console:
+  `requester`, `manager`, `risk_reviewer`, `resource_owner` or
+  `security_manager`. At every sign-in ASTITVA reads the roles from the ID token
+  (or userinfo), from `roles`, `groups`, `organizations[].roles` or the claim
+  set in `NAMOID_ROLES_CLAIM`, and makes them the user's ASTITVA roles. Changes
+  are written to the audit trail. If NamoID sends no role, the user keeps their
+  ASTITVA roles (new users start as Employee), and `NAMOID_USER_MAP` can link a
+  NamoID email to a seeded demo persona.
+- **Application session:** ASTITVA then issues its own HttpOnly,
+  SameSite=Strict session cookies. NamoID tokens are never sent to the browser
+  or stored.
 - **User journey:** Login → Continue with NamoID → NamoID Hosted Auth sign-in →
   callback → ASTITVA dashboard for that role (requester, manager, risk reviewer
   or resource owner) → request, review, use or revoke access.

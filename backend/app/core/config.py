@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     namoid_user_map: str = ""
     # Unknown NamoID users are created as Employees (Security Manager assigns other roles)
     namoid_auto_provision: bool = True
+    # Roles from NamoID: when the ID token / userinfo carries roles, they become the user's
+    # ASTITVA roles at every sign-in. NAMOID_ROLES_CLAIM pins the claim (dotted path) if needed.
+    namoid_role_sync: bool = True
+    namoid_roles_claim: str = ""
     frontend_url: str = "http://localhost:3000"
 
     cors_origins: str = "http://localhost:3000"

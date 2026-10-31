@@ -21,6 +21,9 @@ x-backend-env: &backend-env
   NAMOID_REDIRECT_URI: ${NAMOID_REDIRECT_URI:-http://localhost:8000/api/auth/namoid/callback}
   NAMOID_USER_MAP: ${NAMOID_USER_MAP:-}
   NAMOID_AUTO_PROVISION: ${NAMOID_AUTO_PROVISION:-true}
+  NAMOID_ROLE_SYNC: ${NAMOID_ROLE_SYNC:-true}
+  NAMOID_ROLES_CLAIM: ${NAMOID_ROLES_CLAIM:-}
+  NAMOID_SCOPES: ${NAMOID_SCOPES:-openid profile email}
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
   # Celery beat runs scheduled jobs in Docker, so the API's in-process scheduler is off
   ENABLE_INPROCESS_SCHEDULER: "false"

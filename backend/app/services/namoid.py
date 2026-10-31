@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.context import Actor
-from app.core.rbac import MANAGER, REQUESTER
+from app.core.rbac import MANAGER, REQUESTER, RESOURCE_OWNER, RISK_REVIEWER, SECURITY_ADMIN
 from app.models import Role, User, utcnow
 from app.security import crypto, jwt_tokens
 from app.services import audit
@@ -125,9 +125,107 @@ def _validate_id_token(doc: dict, id_token: str, nonce: str) -> dict:
 def _userinfo(doc: dict, access_token: str) -> dict:
     if not doc.get("userinfo_endpoint") or not access_token:
         return {}
-    r = httpx.get(doc["userinfo_endpoint"], headers={"Authorization": f"Bearer {access_token}"},
-                  timeout=HTTP_TIMEOUT)
-    return r.json() if r.status_code == 200 else {}
+    try:
+        r = httpx.get(doc["userinfo_endpoint"], headers={"Authorization": f"Bearer {access_token}"},
+                      timeout=HTTP_TIMEOUT)
+        return r.json() if r.status_code == 200 else {}
+    except Exception:  # userinfo only adds optional claims; the ID token is already verified
+        return {}
+
+
+# NamoID role names (case-insensitive, "-", " " and "_" treated alike) -> ASTITVA roles
+ROLE_ALIASES = {
+    "requester": REQUESTER, "employee": REQUESTER,
+    "manager": MANAGER, "team_manager": MANAGER, "approver": MANAGER,
+    "risk_reviewer": RISK_REVIEWER, "reviewer": RISK_REVIEWER, "risk": RISK_REVIEWER,
+    "resource_owner": RESOURCE_OWNER, "owner": RESOURCE_OWNER, "data_owner": RESOURCE_OWNER,
+    "model_owner": RESOURCE_OWNER,
+    "security_admin": SECURITY_ADMIN, "security_manager": SECURITY_ADMIN, "admin": SECURITY_ADMIN,
+}
+ROLE_CLAIM_KEYS = ("roles", "role", "groups", "org_roles", "organization_roles", "permissions")
+
+
+def _dig(obj, path: str):
+    for part in path.split("."):
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(part)
+    return obj
+
+
+def _strings(value) -> list[str]:
+    """Flatten a role claim: "a b", "a,b", ["a"], [{"name": "a"}], {"a": {...}} all work."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [v for v in value.replace(",", " ").split() if v]
+    if isinstance(value, dict):
+        return list(value.keys())
+    out: list[str] = []
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str):
+                out.append(item)
+            elif isinstance(item, dict):
+                for k in ("name", "key", "slug", "role", "id"):
+                    if isinstance(item.get(k), str):
+                        out.append(item[k])
+                        break
+                for k in ROLE_CLAIM_KEYS:  # e.g. organizations: [{"id": .., "roles": [..]}]
+                    if k in item:
+                        out.extend(_strings(item[k]))
+    return out
+
+
+def raw_role_claims(claims: dict) -> list[str]:
+    """Collect role names NamoID sent, from a pinned claim or the common places providers use."""
+    pinned = get_settings().namoid_roles_claim.strip()
+    if pinned:
+        return _strings(_dig(claims, pinned) if "." in pinned else claims.get(pinned))
+    found: list[str] = []
+    for key, value in claims.items():
+        k = key.lower().rsplit("/", 1)[-1].rsplit(":", 1)[-1]  # namespaced claims like https://x/roles
+        if k in ROLE_CLAIM_KEYS:
+            found.extend(_strings(value))
+        elif k in ("organizations", "organization", "orgs", "org", "app_metadata", "user_metadata", "metadata"):
+            items = value if isinstance(value, list) else [value]
+            for item in items:
+                if isinstance(item, dict):
+                    for rk in ROLE_CLAIM_KEYS:
+                        if rk in item:
+                            found.extend(_strings(item[rk]))
+    return found
+
+
+def map_roles(names: list[str]) -> list[str]:
+    out = set()
+    for n in names:
+        key = n.strip().lower().rsplit(":", 1)[-1].replace("-", "_").replace(" ", "_")
+        key = key.removeprefix("astitva_")
+        if key.upper() in (REQUESTER, MANAGER, RISK_REVIEWER, RESOURCE_OWNER, SECURITY_ADMIN):
+            out.add(key.upper())
+        elif key in ROLE_ALIASES:
+            out.add(ROLE_ALIASES[key])
+    return sorted(out)
+
+
+def _sync_roles(db: Session, user: User, roles: list[str], ip: str) -> None:
+    if not roles or sorted(user.role_names) == roles:
+        return
+    before = user.role_names
+    user.roles = list(db.execute(select(Role).where(Role.name.in_(roles))).scalars())
+    if MANAGER not in roles and REQUESTER in roles and not user.manager_id:
+        _assign_default_manager(db, user)
+    audit.record(db, Actor(user=user, ip=ip), "USER_ROLES_SYNCED_FROM_NAMOID", target_type="USER",
+                 target_id=user.id, previous_state={"roles": before}, new_state={"roles": roles},
+                 reason="Roles assigned in the NamoID Console")
+
+
+def _assign_default_manager(db: Session, user: User) -> None:
+    managers = [u for u in db.execute(select(User).where(User.status == "ACTIVE")).scalars()
+                if MANAGER in u.role_names and u.id != user.id]
+    if len(managers) == 1:
+        user.manager_id = managers[0].id
 
 
 def _user_map() -> dict[str, str]:
@@ -139,7 +237,7 @@ def _user_map() -> dict[str, str]:
     return out
 
 
-def resolve_user(db: Session, email: str, name: str | None, ip: str) -> User:
+def resolve_user(db: Session, email: str, name: str | None, ip: str, roles: list[str] | None = None) -> User:
     target = _user_map().get(email, email)
     user = db.execute(select(User).where(User.email == target)).scalar_one_or_none()
     if user:
@@ -153,14 +251,14 @@ def resolve_user(db: Session, email: str, name: str | None, ip: str) -> User:
                 # Unusable local password: this person signs in only through NamoID.
                 password_hash=crypto.hash_password(crypto.random_token(32)),
                 designation="New Joiner", email_verified=True, password_changed_at=utcnow())
-    user.roles = [db.execute(select(Role).where(Role.name == REQUESTER)).scalar_one()]
-    managers = [u for u in db.execute(select(User).where(User.status == "ACTIVE")).scalars() if MANAGER in u.role_names]
-    if len(managers) == 1:
-        user.manager_id = managers[0].id
+    roles = roles or [REQUESTER]
+    user.roles = list(db.execute(select(Role).where(Role.name.in_(roles))).scalars())
     db.add(user)
     db.flush()
+    if MANAGER not in roles:
+        _assign_default_manager(db, user)
     audit.record(db, Actor(user=user, ip=ip), "AUTH_PROVISIONED_FROM_NAMOID", target_type="USER",
-                 target_id=user.id, new_state={"roles": [REQUESTER]})
+                 target_id=user.id, new_state={"roles": roles})
     return user
 
 
@@ -184,7 +282,7 @@ def complete(db: Session, flow_cookie: str | None, code: str | None, state: str 
     if not tokens.get("id_token"):
         raise AuthError("NamoID did not return an identity token.", 401, "NAMOID_ID_TOKEN")
     claims = _validate_id_token(doc, tokens["id_token"], flow["nonce"])
-    if not claims.get("email"):
+    if not claims.get("email") or not raw_role_claims(claims):
         info = _userinfo(doc, tokens.get("access_token", ""))
         if info.get("sub") == claims["sub"]:
             claims = {**info, **claims}
@@ -192,12 +290,19 @@ def complete(db: Session, flow_cookie: str | None, code: str | None, state: str 
     if not email or claims.get("email_verified") is False:
         raise AuthError("Your NamoID account needs a verified email address.", 403, "NAMOID_EMAIL")
 
-    user = resolve_user(db, email, claims.get("name"), ip)
+    s = get_settings()
+    namoid_roles = map_roles(raw_role_claims(claims)) if s.namoid_role_sync else []
+    user = resolve_user(db, email, claims.get("name"), ip, namoid_roles)
+    _sync_roles(db, user, namoid_roles, ip)
     _attempt(db, user.email, user, ip, ua, True, "NAMOID_OK", "NAMOID")
     _detect_suspicious_login(db, user, ip, ua)
     session = create_session(db, user, ip, ua, "NAMOID")
     audit.record(db, Actor(user=user, ip=ip, user_agent=ua), "AUTH_LOGIN_SUCCESS", target_type="USER",
                  target_id=user.id, new_state={"method": "NAMOID_HOSTED_AUTH", "namoid_sub": claims["sub"],
-                                               "session_id": session.session.id})
+                                               "session_id": session.session.id,
+                                               "roles_source": "NAMOID" if namoid_roles else "ASTITVA",
+                                               "roles": user.role_names,
+                                               # claim names only (no values) to help configure role mapping
+                                               "namoid_claim_names": sorted(claims.keys())})
     db.commit()
     return session, flow["next"]

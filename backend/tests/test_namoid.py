@@ -29,6 +29,21 @@ class _Jwks:
         return _Key(KEY.public_key())
 
 
+@pytest.fixture(autouse=True)
+def _retire_namoid_users():
+    """Users created here must not change approval routing for later test modules."""
+    yield
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.models import User
+
+    with SessionLocal() as s:
+        for u in s.execute(select(User).where(User.email.like("%@gmail.example"))).scalars():
+            u.status, u.roles = "DEACTIVATED", []
+        s.commit()
+
+
 @pytest.fixture
 def nid(monkeypatch):
     s = get_settings()
@@ -39,7 +54,8 @@ def nid(monkeypatch):
     monkeypatch.setattr(s, "namoid_auto_provision", True)
     monkeypatch.setattr(namoid, "discovery", lambda: DOC)
     monkeypatch.setattr(namoid, "_jwks_client", lambda uri: _Jwks())
-    state = {"claims": {}, "key": KEY, "token_calls": []}
+    state = {"claims": {}, "key": KEY, "token_calls": [], "userinfo": {}}
+    monkeypatch.setattr(namoid, "_userinfo", lambda doc, at: state["userinfo"])
 
     def exchange(doc, code, verifier):
         state["token_calls"].append({"code": code, "verifier": verifier})
@@ -164,3 +180,75 @@ def test_disabled_when_not_configured(client, monkeypatch):
     assert client.get("/api/auth/namoid/config").json() == {"enabled": False}
     r = client.get("/api/auth/namoid/login", follow_redirects=False)
     assert "NAMOID_DISABLED" in r.headers["location"]
+
+
+# ------------------------------------------------------------------ roles from NamoID (method 2)
+@pytest.mark.parametrize("claims, expected", [
+    ({"roles": ["manager"]}, ["MANAGER"]),
+    ({"roles": "risk-reviewer"}, ["RISK_REVIEWER"]),
+    ({"https://namoid.in/roles": ["Resource Owner"]}, ["RESOURCE_OWNER"]),
+    ({"organizations": [{"id": "org_1", "roles": [{"name": "security_manager"}]}]}, ["SECURITY_ADMIN"]),
+    ({"groups": ["astitva:requester", "unrelated"]}, ["REQUESTER"]),
+    ({"roles": ["member"]}, []),
+    ({}, []),
+])
+def test_role_claim_shapes_are_mapped(claims, expected):
+    assert namoid.map_roles(namoid.raw_role_claims(claims)) == expected
+
+
+def test_pinned_roles_claim(monkeypatch):
+    monkeypatch.setattr(get_settings(), "namoid_roles_claim", "app.astitva_roles")
+    assert namoid.map_roles(namoid.raw_role_claims({"app": {"astitva_roles": ["owner"]}, "roles": ["admin"]})) \
+        == ["RESOURCE_OWNER"]
+
+
+def test_new_user_gets_roles_from_namoid(client, nid):
+    nid["claims"] = {"email": "reviewer.one@gmail.example", "sub": "nid_rr", "roles": ["risk_reviewer"]}
+    q, flow = _start(client, nid)
+    assert _callback(client, flow, code="a", state=q["state"]).status_code == 200
+    me = client.get("/api/auth/me").json()
+    assert me["email"] == "reviewer.one@gmail.example" and me["roles"] == ["RISK_REVIEWER"]
+    assert "approvals:read" in me["permissions"]
+
+
+def test_namoid_roles_override_local_roles_and_are_audited(client, nid, db):
+    from sqlalchemy import select
+
+    from app.models import AuditEvent
+
+    nid["claims"] = {"email": "owner.two@gmail.example", "sub": "nid_o2", "roles": ["requester"]}
+    q, flow = _start(client, nid)
+    _callback(client, flow, code="a", state=q["state"])
+    assert client.get("/api/auth/me").json()["roles"] == ["REQUESTER"]
+    nid["claims"] = {"email": "owner.two@gmail.example", "sub": "nid_o2", "roles": ["resource-owner", "employee"]}
+    q, flow = _start(client, nid)
+    _callback(client, flow, code="a", state=q["state"])
+    assert client.get("/api/auth/me").json()["roles"] == ["REQUESTER", "RESOURCE_OWNER"]
+    ev = db.execute(select(AuditEvent).where(AuditEvent.action == "USER_ROLES_SYNCED_FROM_NAMOID")
+                    .order_by(AuditEvent.occurred_at.desc())).scalars().first()
+    assert ev and ev.new_state["roles"] == ["REQUESTER", "RESOURCE_OWNER"]
+
+
+def test_no_role_claim_keeps_existing_roles_and_user_map_fallback(client, nid, monkeypatch):
+    monkeypatch.setattr(get_settings(), "namoid_user_map", "me@gmail.example=priya.desai@nexora.example")
+    nid["claims"] = {"email": "me@gmail.example"}
+    q, flow = _start(client, nid)
+    _callback(client, flow, code="a", state=q["state"])
+    me = client.get("/api/auth/me").json()
+    assert me["email"] == "priya.desai@nexora.example" and "MANAGER" in me["roles"]
+
+
+def test_role_sync_can_be_disabled(client, nid, monkeypatch):
+    monkeypatch.setattr(get_settings(), "namoid_role_sync", False)
+    nid["claims"] = {"email": "no.sync@gmail.example", "sub": "nid_ns", "roles": ["admin"]}
+    q, flow = _start(client, nid)
+    _callback(client, flow, code="a", state=q["state"])
+    assert client.get("/api/auth/me").json()["roles"] == ["REQUESTER"]
+
+
+def test_roles_only_in_userinfo_are_used(client, nid):
+    nid["claims"] = {"email": "ui.roles@gmail.example", "sub": "nid_ui"}
+    nid["userinfo"] = {"sub": "nid_ui", "roles": ["manager"]}
+    q, flow = _start(client, nid)
+    _callback(client, flow, code="a", state=q["state"])
+    assert client.get("/api/auth/me").json()["roles"] == ["MANAGER"]
