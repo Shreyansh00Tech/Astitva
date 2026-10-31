@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { api, fetcher } from "@/lib/api";
 import { primaryRole, ROLE_LABEL, useSession } from "@/lib/session";
+import { emergencyBeep, primeBeep } from "@/lib/beep";
 import { cn, relTime } from "@/lib/utils";
 import { Wordmark } from "./logo";
 import { Avatar, Skeleton } from "./ui/misc";
@@ -168,7 +169,12 @@ function GlobalSearch() {
 
 function NotificationBell() {
   const { data, mutate } = useSWR("/api/notifications?unread_only=false", fetcher, { refreshInterval: 30000 });
+  const { me } = useSession();
+  const isSecurityManager = !!me?.roles?.includes("SECURITY_ADMIN");
+  const beepRef = useRef(isSecurityManager);
+  beepRef.current = isSecurityManager;
   const wsRef = useRef<WebSocket | null>(null);
+  useEffect(() => (isSecurityManager ? primeBeep() : undefined), [isSecurityManager]);
   useEffect(() => {
     let stop = false;
     let retry: any;
@@ -181,6 +187,8 @@ function NotificationBell() {
           const m = JSON.parse(ev.data);
           if (m.type === "notification") {
             mutate();
+            // Break-glass activated: one soft beep, Security Manager only.
+            if (m.event === "alert:BREAKGLASS" && beepRef.current) emergencyBeep(m.id);
             (m.severity === "CRITICAL" ? toast.error : m.severity === "WARNING" ? toast.warning : toast.info)(m.title);
           }
         };
