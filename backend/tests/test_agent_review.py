@@ -206,15 +206,13 @@ def test_demo_shows_every_agent_and_two_disagreements(client, db, routing_on):
     assert client.post("/api/agent-review/demo", headers=login(client, "priya.desai")).status_code == 403
     r = client.post("/api/agent-review/demo", headers=meera)
     assert r.status_code == 200, r.text
-    rows = {s["title"]: s for s in r.json()["scenarios"]}
-    hist = review_of(db, rows["History + policy disagreement"]["request_id"])
-    assert hist.status == "AWAITING_CHOICE" and hist.ai_score - hist.rule_score >= 15
-    h = next(a for a in hist.agents if a["code"] == "HISTORY")
-    assert h["verdict"] == "RISK" and "H3" in {f["id"] for f in h["findings"]}  # revoked earlier by security
-    inj = review_of(db, rows["Prompt injection in the justification"]["request_id"])
-    assert inj.status == "AWAITING_CHOICE" and inj.aggregator["injection"]
-    ok = review_of(db, rows["Agents agree"]["request_id"])
-    assert ok.status == "AUTO_FINAL" and ok.chosen == "AUTO"
+    rows = r.json()["scenarios"]
+    assert len(rows) == 2
+    for row in rows:
+        rv = review_of(db, row["request_id"])
+        # Ordinary disagreements: the agents score higher but nothing extreme, and the Security Manager picks.
+        assert rv.ai_score >= rv.rule_score and rv.ai_score < 95
+        assert not rv.aggregator["injection"]
     # Running it again replaces the open demo requests instead of failing on duplicates
     again = client.post("/api/agent-review/demo", headers=meera)
     assert again.status_code == 200

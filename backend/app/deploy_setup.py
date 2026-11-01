@@ -50,6 +50,15 @@ def run() -> None:
             mode = get_settings().seed_mode
             if mode in ("clean", "demo"):
                 seed.run(clean=(mode == "clean"))
+            if mode != "none" and get_settings().demo_examples:
+                from app import showcase
+                from app.core.db import SessionLocal
+
+                try:  # examples are optional: never block the site on them
+                    with SessionLocal() as db:
+                        showcase.load(db)
+                except Exception:
+                    log.exception("Loading the example data failed")
         finally:
             conn.execute(text("select pg_advisory_unlock(:k)"), {"k": _LOCK_KEY})
             conn.commit()
