@@ -10,6 +10,10 @@ This repository is a contributor-owned response to the
 `responsible-ai-access-gate` problem statement. It was created from the official
 [NamoID challenge template](https://github.com/namoidhq/namoid-challenge-template).
 
+> 📘 **New here? Read the [ASTITVA Handbook](./HANDBOOK.md)**: how the service works, how a new employee is
+> onboarded, what each role does, and the request → approval → expiry → revoke flow. Live demo:
+> <https://astitva-gray.vercel.app>.
+
 This project is an independent community build. It is not an official
 NamoID product, security recommendation, or endorsement.
 
@@ -103,7 +107,7 @@ cd backend && pytest -q
 Template metadata check: `npm run check`. Template starter page: `npm run dev`
 (http://localhost:8080).
 
-Full product guide: [docs/ASTITVA-GUIDE.md](./docs/ASTITVA-GUIDE.md). Demo
+Product handbook: [HANDBOOK.md](./HANDBOOK.md). Full product guide: [docs/ASTITVA-GUIDE.md](./docs/ASTITVA-GUIDE.md). Demo
 walkthrough: [docs/demo-test-workflow.md](./docs/demo-test-workflow.md).
 
 ## Deploy on Vercel
