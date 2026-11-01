@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Perms, SensitivityBadge, SeverityBadge, StatusBadge } from "@/components/status";
 import { AreaSeries, HBars, StackedBars } from "@/components/charts";
 import { StatTile } from "@/components/stat";
+import { ProjectAccessBoxes } from "@/components/project-timeline";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
 
@@ -117,6 +118,7 @@ export default function EmployeeProfile({ params }: { params: Promise<{ id: stri
             <div className="grid gap-4 lg:grid-cols-2">
               <Card><CardHeader title="Daily work activity" description="Task events per day, last 30 days" /><CardBody><AreaSeries data={charts.daily_activity} x="date" y="events" /></CardBody></Card>
               <Card><CardHeader title="Weekly productivity" description="Verified task completions per week" /><CardBody><StackedBars data={charts.weekly_productivity} x="week" series={[{ key: "completed", label: "Completed", color: "series-1" }]} /></CardBody></Card>
+              <div className="lg:col-span-2"><ProjectAccessBoxes endpoint={`/api/employees/${id}/project-timeline`} self={false} /></div>
               <Card><CardHeader title="Monthly task completion" description="Assigned vs completed" /><CardBody><StackedBars data={charts.monthly_completion} x="month" series={[{ key: "assigned", label: "Assigned", color: "series-4" }, { key: "completed", label: "Completed", color: "series-3" }]} /></CardBody></Card>
               <Card><CardHeader title="Project contribution" description="Verified tasks by project" /><CardBody>{charts.project_contribution.length ? <HBars data={charts.project_contribution} label="project" value="tasks" colorKey="series-1" /> : <EmptyState title="No verified work yet" />}</CardBody></Card>
               <Card><CardHeader title="Resource utilization" description="Authorized operations per resource" /><CardBody>{charts.resource_utilization.length ? <HBars data={charts.resource_utilization} label="resource" value="operations" colorKey="series-4" /> : <EmptyState title="No resource usage" />}</CardBody></Card>

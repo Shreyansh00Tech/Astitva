@@ -106,6 +106,10 @@ Template metadata check: `npm run check`. Template starter page: `npm run dev`
 Full product guide: [docs/ASTITVA-GUIDE.md](./docs/ASTITVA-GUIDE.md). Demo
 walkthrough: [docs/demo-test-workflow.md](./docs/demo-test-workflow.md).
 
+## Deploy on Vercel
+
+One Vercel project serves both the UI and the API (Vercel Services, `vercel.json`), with Neon Postgres and Upstash Redis from the Vercel dashboard. Steps: [docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md).
+
 ## What works
 
 ASTITVA is a purpose-bound access request and approval gate for fictional
@@ -122,12 +126,22 @@ Nexora Technologies models, datasets and databases.
 - Grants **expire automatically**; extensions need a new request (no silent
   extension). Managers and the security manager can **revoke** fully or drop
   single permissions; emergency (break-glass) access is monitored and revocable.
+- **Access dependency graph** (Manager and Security Manager only): pick a model
+  and see every user, AI agent and API that depends on it, including indirect
+  impact through downstream APIs. Revoke from the graph and compare **before /
+  after**. A manager can only cut their own team's grants; agents and API links
+  need the security manager. API links are simulated.
 - **Separation of duties:** nobody approves their own request.
+- **Access ends with the project:** every request is linked to the requester's
+  current project, and a grant never outlives the project end date (asked for
+  30 days, project ends in 15, so access ends in 15). The employee Overview shows
+  the current project, due date and team, plus one timeline with the project
+  start, submission and end dates and each grant's start and expiry.
 - Active grants, decision history and a hash-chained audit trail are visible in
   the UI.
 
 Tests (`backend/tests`) cover separation of duties, expiry, narrowed scope,
-emergency revocation, routing guardrails, risk engine and priority.
+emergency revocation, routing guardrails, risk engine, priority and project-bound expiry.
 
 ## Known limitations
 

@@ -9,7 +9,7 @@ from app.core.db import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
-if config.config_file_name is not None:
+if config.config_file_name is not None and "connection" not in config.attributes:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
 
@@ -22,6 +22,12 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    shared = config.attributes.get("connection")
+    if shared is not None:  # app.deploy_setup passes its own (advisory-locked) connection
+        context.configure(connection=shared, target_metadata=target_metadata, compare_type=True)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     connectable = engine_from_config(config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.",
                                      poolclass=pool.NullPool)
     with connectable.connect() as connection:

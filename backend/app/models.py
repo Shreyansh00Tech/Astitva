@@ -188,6 +188,11 @@ class Project(Base, TimestampMixin):
     department_id: Mapped[str | None] = mapped_column(ForeignKey("departments.id"))
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE")
     description: Mapped[str | None] = mapped_column(Text)
+    # Project timeline (simulated). Time-bound access is capped at end_date so access never outlives the project.
+    team_name: Mapped[str | None] = mapped_column(String(120))
+    start_date: Mapped[datetime | None] = mapped_column(TS)
+    submission_date: Mapped[datetime | None] = mapped_column(TS)  # deliverable due date
+    end_date: Mapped[datetime | None] = mapped_column(TS)
 
 
 class ProjectMember(Base):
@@ -298,6 +303,7 @@ class AccessRequest(Base, TimestampMixin):
     deadline_at: Mapped[datetime | None] = mapped_column(TS, index=True)  # requested completion deadline (UTC)
     business_impact: Mapped[str] = mapped_column(String(10), default="MEDIUM", server_default="MEDIUM")
     routing_reasons: Mapped[list | None] = mapped_column(JSON)  # why this approval path was chosen
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)  # requester's current project
 
     requester: Mapped[User] = relationship(foreign_keys=[requester_id], lazy="joined")
     resource: Mapped[Resource] = relationship(lazy="joined")
@@ -365,6 +371,7 @@ class AccessGrant(Base, TimestampMixin):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id"), index=True)
     request_id: Mapped[str | None] = mapped_column(ForeignKey("access_requests.id"))
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
     permissions: Mapped[list] = mapped_column(JSON)
     purpose: Mapped[str] = mapped_column(String(40))
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE", index=True)  # ACTIVE | EXPIRED | REVOKED
@@ -585,7 +592,32 @@ class AgentPermission(Base):
     permissions: Mapped[list] = mapped_column(JSON)
     expires_at: Mapped[datetime | None] = mapped_column(TS)
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    # Set when the permission is cut from the dependency graph; the gateway then denies every call.
+    revoked_at: Mapped[datetime | None] = mapped_column(TS)
+    revoked_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     __table_args__ = (UniqueConstraint("agent_id", "resource_id", name="uq_agent_resource"),)
+
+
+# ---------------------------------------------------------------- dependency graph
+class ResourceDependency(Base, TimestampMixin):
+    """A simulated service link: something that consumes `resource_id` (the upstream model, dataset or database).
+
+    Either an internal API / service endpoint (name + endpoint, no registry entry) or another registered resource
+    (`dependent_resource_id`), e.g. a training dataset feeding a model. Used by the access dependency graph to show
+    the blast radius of a revocation. Suspending a link marks the API as cut off from the upstream resource."""
+
+    __tablename__ = "resource_dependencies"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    dependent_resource_id: Mapped[str | None] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(16))  # API | FEED | TRAINING_DATA
+    endpoint: Mapped[str | None] = mapped_column(String(160))
+    criticality: Mapped[str] = mapped_column(String(10), default="MEDIUM")  # LOW | MEDIUM | HIGH | CRITICAL
+    description: Mapped[str | None] = mapped_column(Text)
+    suspended_at: Mapped[datetime | None] = mapped_column(TS)
+    suspended_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    suspend_reason: Mapped[str | None] = mapped_column(Text)
 
 
 # ---------------------------------------------------------------- notifications
@@ -600,3 +632,54 @@ class Notification(Base):
     severity: Mapped[str] = mapped_column(String(10), default="INFO")
     read_at: Mapped[datetime | None] = mapped_column(TS)
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, index=True)
+
+
+# ---------------------------------------------------------------- internal messaging
+class Conversation(Base):
+    """A private 1:1 chat between two employees/managers. pair_key keeps one conversation per pair."""
+
+    __tablename__ = "conversations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    pair_key: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    last_message_at: Mapped[datetime | None] = mapped_column(TS, index=True)
+
+
+class ConversationParticipant(Base):
+    __tablename__ = "conversation_participants"
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    last_read_at: Mapped[datetime | None] = mapped_column(TS)
+    joined_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    sender_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+    __table_args__ = (Index("ix_chat_messages_conv_created", "conversation_id", "created_at"),)
+
+
+class MockRecord(Base):
+    """Synthetic rows behind the simulated model/dataset/database workspaces (never real data).
+
+    table_name "_meta" holds editable model metadata and admin settings for a resource."""
+
+    __tablename__ = "mock_records"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id", ondelete="CASCADE"), index=True)
+    table_name: Mapped[str] = mapped_column(String(48))
+    record_key: Mapped[str] = mapped_column(String(48))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TS, default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(TS)
+
+    __table_args__ = (Index("ix_mock_records_res_table", "resource_id", "table_name"),
+                      UniqueConstraint("resource_id", "table_name", "record_key", name="uq_mock_record_key"))

@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import pyotp
 from sqlalchemy import select, text
 
+from app.core.dependency_catalog import DEFAULT_DEPENDENCIES
 from app.core.context import SYSTEM, Actor
 from app.core.db import Base, SessionLocal, engine
 from app.core.rbac import ALL_ROLES, MANAGER, REQUESTER, RESOURCE_OWNER, RISK_REVIEWER, ROLE_DESCRIPTIONS, SECURITY_ADMIN
@@ -35,6 +36,7 @@ from app.models import (
     ProjectMember,
     Resource,
     ResourceAccessEvent,
+    ResourceDependency,
     Role,
     SecurityAlert,
     Task,
@@ -61,6 +63,11 @@ NOW = utcnow()
 
 def ago(days: float = 0, hours: float = 0) -> datetime:
     return NOW - timedelta(days=days, hours=hours)
+
+
+def _day(days: int) -> datetime:
+    """A calendar day relative to seeding, at 12:00 UTC (project milestones fall on whole days)."""
+    return (NOW + timedelta(days=days)).replace(hour=12, minute=0, second=0, microsecond=0)
 
 
 FIRST = ["Aarav", "Ishita", "Kabir", "Diya", "Vivaan", "Anika", "Reyansh", "Myra", "Arnav", "Saanvi", "Dhruv", "Kiara",
@@ -98,7 +105,7 @@ RESOURCES = [
     ("RES-FIN-001", "Financial Risk Prediction Model", "AI_MODEL", "FIN", "RESTRICTED", ["READ", "EXECUTE", "WRITE", "ADMIN"],
      ["MODEL_TESTING", "MODEL_TRAINING", "ANALYTICS_REPORTING", "COMPLIANCE_AUDIT"], [], 72, False, "admin", None,
      "Gradient-boosted credit and market risk model used for quarterly exposure forecasts."),
-    ("RES-FIN-002", "Customer Transaction Dataset", "DATASET", "FIN", "CONFIDENTIAL", ["READ", "WRITE", "DELETE", "ADMIN"],
+    ("RES-FIN-002", "Customer Transaction Dataset", "DATASET", "FIN", "CONFIDENTIAL", ["READ", "EXECUTE", "WRITE", "DELETE", "ADMIN"],
      ["ANALYTICS_REPORTING", "FRAUD_INVESTIGATION", "COMPLIANCE_AUDIT", "MODEL_TRAINING"], [], 168, False, "admin", None,
      "Pseudonymised card and wallet transactions (synthetic) for analytics and fraud research."),
     ("RES-HR-001", "HR Employee Database", "DATABASE", "HR", "RESTRICTED", ["READ", "WRITE", "DELETE", "ADMIN"],
@@ -116,12 +123,18 @@ RESOURCES = [
     ("RES-ENG-002", "Development Database", "DATABASE", "ENG", "INTERNAL", ["READ", "WRITE", "DELETE", "ADMIN"],
      ["FEATURE_DEVELOPMENT", "FRONTEND_TESTING", "DATA_MIGRATION", "INCIDENT_RESPONSE"], [], 336, True, "admin", None,
      "Shared PostgreSQL development cluster with masked data."),
-    ("RES-DS-003", "Customer Support AI Dataset", "DATASET", "DS", "CONFIDENTIAL", ["READ", "WRITE", "DELETE"],
+    ("RES-DS-003", "Customer Support AI Dataset", "DATASET", "DS", "CONFIDENTIAL", ["READ", "EXECUTE", "WRITE", "DELETE"],
      ["CUSTOMER_SUPPORT", "MODEL_TRAINING", "ANALYTICS_REPORTING"], [], 168, False, "admin", None,
      "Redacted support transcripts used to fine-tune the support assistant."),
     ("RES-FIN-003", "Finance Ledger Database", "DATABASE", "FIN", "CRITICAL", ["READ", "WRITE", "DELETE", "ADMIN"],
      ["COMPLIANCE_AUDIT", "ANALYTICS_REPORTING", "INCIDENT_RESPONSE"], ["FIN", "SEC"], 24, True, "admin", None,
      "General ledger and payments reconciliation database (the 'Financial Database')."),
+    ("RES-FIN-004", "Loan Approval Model", "AI_MODEL", "FIN", "RESTRICTED", ["READ", "EXECUTE", "WRITE", "ADMIN"],
+     ["MODEL_TESTING", "COMPLIANCE_AUDIT", "ANALYTICS_REPORTING"], [], 72, False, "admin", None,
+     "Retail loan pre-screening scorecard (simulated; never used for real lending decisions)."),
+    ("RES-DS-004", "Fraud Investigation Dataset", "DATASET", "DS", "RESTRICTED", ["READ", "EXECUTE", "WRITE", "DELETE", "ADMIN"],
+     ["FRAUD_INVESTIGATION", "INCIDENT_RESPONSE", "COMPLIANCE_AUDIT"], [], 72, False, "admin", None,
+     "Synthetic fraud case files linking alerts, investigations and outcomes."),
 ]
 
 BASELINE_PROFILES = {
@@ -138,6 +151,21 @@ PROJECTS = [
     ("PRJ-BASEL", "Basel IV Risk Reporting", "FIN"), ("PRJ-PULSE", "Pulse Employee Experience", "HR"),
     ("PRJ-SENTRY", "Zero Trust Rollout", "SEC"),
 ]
+# Projects added after the random work history is generated, so the rest of the seed stays the same.
+EXTRA_PROJECTS = [("PRJ-FALCON", "Project Falcon: Fraud Model Refresh", "FIN")]
+FALCON_TASKS = ["Label Q3 chargeback cases", "Backtest fraud thresholds", "Review model drift report", "Prepare Falcon sign-off pack"]
+# code -> (team name, start: days ago, submission: days from now, end: days from now). Simulated project calendar.
+# Atlas and Falcon end 15 days after seeding, so access granted for them expires on that day too.
+PROJECT_TIMELINE = {
+    "PRJ-ATLAS": ("Checkout Platform Squad", 45, 10, 15), "PRJ-HELIOS": ("SRE & Observability", 90, 30, 40),
+    "PRJ-ORION": ("Mobile Guild", 20, 50, 70), "PRJ-FALCON": ("Fraud Intelligence Team", 30, 10, 15),
+    "PRJ-LEDGER": ("Finance Systems", 120, 25, 35), "PRJ-BASEL": ("Risk Reporting", 60, 55, 75),
+    "PRJ-PULSE": ("People Experience", 40, 14, 20), "PRJ-SENTRY": ("Identity & Zero Trust", 100, 20, 30),
+}
+# Each employee's current project (the one ending soonest) plus the people who sit on that project's team.
+CURRENT_PROJECT = {"eng_emp": "PRJ-ATLAS", "fin_emp": "PRJ-FALCON", "hr_emp": "PRJ-PULSE"}
+PROJECT_STAFF = {"PRJ-ATLAS": [("mgr", "Project Manager")], "PRJ-FALCON": [("mgr", "Project Manager"), ("admin", "Security Reviewer")],
+                 "PRJ-PULSE": [("mgr", "Project Manager")]}
 TASK_VERBS = ["Implement", "Refactor", "Review", "Document", "Optimise", "Test", "Migrate", "Design", "Audit", "Automate"]
 TASK_NOUNS = ["payment retries", "session handling", "dashboard filters", "ETL pipeline", "alert routing", "feature store",
               "model evaluation", "reconciliation report", "onboarding flow", "access logs", "API pagination",
@@ -222,6 +250,11 @@ class Seeder:
             self.q(ago(420), SYSTEM, "RESOURCE_REGISTERED", resource_id=r.id, target_type="RESOURCE", target_id=code,
                    new_state={"sensitivity": sens, "owner": self.users[owner].full_name})
         db = self.db
+        # Simulated service links (APIs and data feeds) used by the access dependency graph.
+        for up, down, name, kind, endpoint, crit, desc in DEFAULT_DEPENDENCIES:
+            db.add(ResourceDependency(resource_id=self.res[up].id, dependent_resource_id=self.res[down].id if down else None,
+                                      name=name, kind=kind, endpoint=endpoint, criticality=crit, description=desc))
+        db.flush()
         admin = self.users["admin"]
         db.add_all([
             Policy(name="Manager and security approval by different people", policy_type="SOD", created_by_id=admin.id,
@@ -252,7 +285,9 @@ class Seeder:
         db = self.db
         projects = {}
         for code, name, dept in PROJECTS:
-            p = Project(code=code, name=name, department_id=self.depts[dept].id, description=f"{name} programme.")
+            team, start, submit, end = PROJECT_TIMELINE[code]
+            p = Project(code=code, name=name, department_id=self.depts[dept].id, description=f"{name} programme.",
+                        team_name=team, start_date=_day(-start), submission_date=_day(submit), end_date=_day(end))
             db.add(p)
             db.flush()
             projects[code] = p
@@ -260,6 +295,7 @@ class Seeder:
         for code, _, dept in PROJECTS:
             by_dept.setdefault(dept, []).append(projects[code])
         task_n = 1
+        staffed: set[tuple[str, str]] = set()
         dept_res = {"ENG": ["RES-ENG-002", "RES-ENG-001"], "FIN": ["RES-FIN-002", "RES-FIN-003"], "HR": ["RES-HR-001"],
                     "DS": ["RES-DS-002", "RES-DS-003"], "SEC": ["RES-ENG-001"]}
         for key, u in self.users.items():
@@ -271,8 +307,14 @@ class Seeder:
             if key == "eng_emp":
                 mine = ps  # Rahul: 3 projects
             for p in mine:
-                db.add(ProjectMember(project_id=p.id, user_id=u.id, role=R.choice(["Contributor", "Lead", "Reviewer"]),
-                                     joined_at=ago(R.randint(100, 200))))
+                role = R.choice(["Contributor", "Lead", "Reviewer"])
+                staff = dict(PROJECT_STAFF.get(p.code, []))
+                if key in staff:
+                    role = staff[key]
+                elif CURRENT_PROJECT.get(key) == p.code:
+                    role = "Lead" if key == "fin_emp" else "Contributor"
+                db.add(ProjectMember(project_id=p.id, user_id=u.id, role=role, joined_at=ago(R.randint(100, 200))))
+                staffed.add((p.code, key))
             # Performance profile (hidden driver of simulated outcomes)
             talent = R.uniform(0.55, 1.0)
             n_tasks = int(R.randint(14, 30) * (0.6 + talent * 0.6))
@@ -316,6 +358,41 @@ class Seeder:
                                      action="WRITE" if et == "COMMIT" else None,
                                      outcome="SUCCESS" if et in ("COMMIT", "COMPLETED", "VERIFIED") else None,
                                      details={"source": "simulated-tracker"}))
+        # Extra projects and fixed memberships use their own random stream so the history above is unchanged.
+        rx = random.Random(1115)
+        for code, name, dept in EXTRA_PROJECTS:
+            team, start, submit, end = PROJECT_TIMELINE[code]
+            p = Project(code=code, name=name, department_id=self.depts[dept].id, description=f"{name} programme.",
+                        team_name=team, start_date=_day(-start), submission_date=_day(submit), end_date=_day(end))
+            db.add(p)
+            db.flush()
+            projects[code] = p
+        for key, code in CURRENT_PROJECT.items():
+            if (code, key) in staffed:
+                continue
+            p, u = projects[code], self.users[key]
+            db.add(ProjectMember(project_id=p.id, user_id=u.id, role="Lead", joined_at=p.start_date))
+            staffed.add((code, key))
+            for i, title in enumerate(FALCON_TASKS if code == "PRJ-FALCON" else []):
+                created = p.start_date + timedelta(days=3 + i * 6)
+                done = i < 2
+                t = Task(code=f"TSK-{task_n:05d}", project_id=p.id, assignee_id=u.id, title=title,
+                         priority=rx.choice(["MEDIUM", "HIGH"]), status="DONE" if done else "IN_PROGRESS",
+                         due_at=created + timedelta(days=7), created_at=created,
+                         completed_at=created + timedelta(days=5) if done else None)
+                task_n += 1
+                db.add(t)
+                db.flush()
+                for et, ts in [("CREATED", created), ("STARTED", created + timedelta(hours=6))] + (
+                        [("COMPLETED", t.completed_at)] if done else []):
+                    db.add(TaskEvent(task_id=t.id, user_id=u.id, project_id=p.id, event_type=et, occurred_at=ts,
+                                     outcome="SUCCESS" if et == "COMPLETED" else None,
+                                     details={"source": "simulated-tracker"}))
+        for code, staff in PROJECT_STAFF.items():
+            for key, role in staff:
+                if (code, key) not in staffed:
+                    db.add(ProjectMember(project_id=projects[code].id, user_id=self.users[key].id, role=role,
+                                         joined_at=projects[code].start_date))
         db.flush()
 
     # -------------------------------------------------------------- baselines & standing access
@@ -687,8 +764,10 @@ class Seeder:
         if db.get(AccessRequest, r4.id).current_stage == "MANAGER":
             workflow.act(db, A(mgr), r4.id, "APPROVE", "Part of the Q3 fraud model refresh.")
         # 5. Medium risk approved by the Manager -> active purpose-bound grant
-        r5 = sub(rahul, "RES-DS-002", ["READ", "EXECUTE"], "FEATURE_DEVELOPMENT", 72,
-                 "Integrate recommendation scores into the Atlas checkout upsell widget behind a feature flag.")
+        #    Asked for 30 days, but Atlas ends in 15, so the grant is capped at the Atlas end date.
+        r5 = sub(rahul, "RES-DS-002", ["READ", "EXECUTE"], "FEATURE_DEVELOPMENT", 720,
+                 "Integrate recommendation scores into the Atlas checkout upsell widget behind a feature flag "
+                 "until the Atlas launch.")
         while db.get(AccessRequest, r5.id).status == "PENDING":
             stage = db.get(AccessRequest, r5.id).current_stage
             workflow.act(db, A(mgr if stage == "MANAGER" else sec), r5.id, "APPROVE", "Approved.")
@@ -722,12 +801,38 @@ def reset_schema():
     command.upgrade(cfg, "head")
 
 
+def ensure_catalog(db) -> int:
+    """Bring an existing database up to the current resource list without touching grants or history:
+    adds resources that are missing and any newly offered permissions. Returns how many resources were added."""
+    owner = db.execute(select(User).where(User.email == f"{DEMO_EMAILS['admin']}@{DOMAIN}")).scalar_one_or_none()
+    added = 0
+    for code, name, typ, dept, sens, perms, purposes, depts, max_h, bg, _owner, _backup, desc in RESOURCES:
+        r = db.execute(select(Resource).where(Resource.code == code)).scalar_one_or_none()
+        if r:
+            missing = [p for p in perms if p not in (r.available_permissions or [])]
+            if missing:
+                r.available_permissions = [p for p in perms if p in set(r.available_permissions or []) | set(missing)]
+            continue
+        d = db.execute(select(Department).where(Department.code == dept)).scalar_one_or_none()
+        if not owner or not d:
+            continue
+        db.add(Resource(code=code, name=name, resource_type=typ, department_id=d.id, sensitivity=sens,
+                        available_permissions=perms, allowed_purposes=purposes, allowed_departments=depts,
+                        max_duration_hours=max_h, breakglass_allowed=bg, owner_id=owner.id, description=desc,
+                        requires_risk_review=sens not in ("PUBLIC", "INTERNAL")))
+        added += 1
+    db.commit()
+    return added
+
+
 def run(reset: bool = False, clean: bool = False):
     if reset:
         reset_schema()
     with SessionLocal() as db:
         if db.execute(select(User).limit(1)).first():
-            print("Database already seeded. Use --reset to recreate.")
+            added = ensure_catalog(db)
+            print("Database already seeded. Use --reset to recreate."
+                  + (f" Added {added} new mock resource(s) to the registry." if added else ""))
             return
         s = Seeder(db)
         if clean:

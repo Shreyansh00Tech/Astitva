@@ -22,7 +22,7 @@ export default function Notifications() {
   const all = async () => { try { await api("/api/notifications/read-all", { method: "POST" }); mutate(); toast.success("All caught up"); } catch (e) { toast.error(errorMessage(e)); } };
   return (
     <>
-      <PageHeader title="Notifications" description="Approvals, expiries, alerts and recertification reminders. Delivered live over WebSocket."
+      <PageHeader title="Notifications" description="Approvals, expiries, alerts and recertification reminders. Delivered live."
         actions={<Button variant="outline" onClick={all} disabled={!data?.unread}><CheckCheck />Mark all read</Button>} />
       <Tabs value={filter} onValueChange={setFilter} className="mb-3">
         <TabsList><TabsTrigger value="all">All</TabsTrigger><TabsTrigger value="unread">Unread{data?.unread ? ` (${data.unread})` : ""}</TabsTrigger></TabsList>

@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import access, admin, auth, governance
+from app.api import access, admin, auth, governance, graph, messages, workspace
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -57,6 +57,44 @@ app.add_middleware(
 )
 
 
+# Periodic jobs on serverless hosts: each one runs at most once per interval, triggered by normal
+# traffic, before the request that triggered it is answered (so expired access is never served).
+_TICKS = (("expire", 60, "expire_and_warn"), ("recert", 3600, "recertification"), ("drift", 6 * 3600, "drift_scan"))
+
+
+def _run_due_ticks() -> None:
+    from app.security.ratelimit import get_redis
+    from app.services import maintenance
+
+    r = get_redis()
+    for name, every, fn in _TICKS:
+        if r.set(f"astitva:tick:{name}", "1", nx=True, ex=every):
+            try:
+                getattr(maintenance, fn)()
+            except Exception as exc:
+                log.warning("periodic job %s failed: %s", name, exc)
+
+
+@app.middleware("http")
+async def hosted_setup_and_ticks(request: Request, call_next):
+    if request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        if settings.auto_setup:
+            from app import deploy_setup
+
+            try:
+                await asyncio.to_thread(deploy_setup.ensure)
+            except Exception:
+                log.exception("database setup failed")
+                return JSONResponse({"detail": "The database is still being set up, or DATABASE_URL is wrong. "
+                                               "Check the function logs and try again."}, status_code=503)
+        if settings.enable_request_ticks:
+            try:
+                await asyncio.to_thread(_run_due_ticks)
+            except Exception as exc:
+                log.warning("periodic jobs skipped: %s", exc)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     resp = await call_next(request)
@@ -85,7 +123,7 @@ async def unhandled(request: Request, exc: Exception):
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
-for r in (auth.router, access.router, governance.router, admin.router):
+for r in (auth.router, access.router, governance.router, admin.router, graph.router, messages.router, workspace.router):
     app.include_router(r)
 
 

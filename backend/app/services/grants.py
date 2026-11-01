@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.context import SYSTEM, Actor
 from app.models import AccessGrant, AccessToken, EmergencySession, utcnow
 from app.security import crypto
-from app.services import audit
+from app.services import audit, projects
 from app.services.notify import notify
 
 _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -31,17 +31,25 @@ def issue_token(db: Session, grant: AccessGrant, approval_ref: str | None) -> tu
 
 def create_grant(db: Session, actor: Actor, *, user_id: str, resource_id: str, permissions: list[str], purpose: str,
                  hours: float | None, request_id: str | None = None, source: str = "REQUEST",
-                 is_emergency: bool = False, approval_ref: str | None = None) -> tuple[AccessGrant, AccessToken]:
+                 is_emergency: bool = False, approval_ref: str | None = None,
+                 project_id: str | None = None) -> tuple[AccessGrant, AccessToken]:
     now = utcnow()
+    expires = (now + timedelta(hours=hours)) if hours else None
+    project = projects.resolve_project(db, user_id, project_id, now)
+    capped = False
+    if not is_emergency:  # break-glass is minutes long and incident-bound, not project-bound
+        expires, capped = projects.cap_expiry(project, expires)
     g = AccessGrant(user_id=user_id, resource_id=resource_id, request_id=request_id, permissions=list(permissions),
-                    purpose=purpose, source=source, is_emergency=is_emergency, granted_at=now,
-                    expires_at=(now + timedelta(hours=hours)) if hours else None)
+                    purpose=purpose, source=source, is_emergency=is_emergency, granted_at=now, expires_at=expires,
+                    project_id=project.id if project else None)
     db.add(g)
     db.flush()
     tok, _ = issue_token(db, g, approval_ref) if g.expires_at else (None, None)
     audit.record(db, actor, "GRANT_ACTIVATED", resource_id=resource_id, target_type="GRANT", target_id=g.id,
                  request_id=request_id, new_state={"user_id": user_id, "permissions": permissions, "purpose": purpose,
                                                    "expires_at": g.expires_at, "emergency": is_emergency,
+                                                   "project": project.code if project else None,
+                                                   "capped_to_project_end": capped,
                                                    "token": tok.token_hint if tok else None})
     return g, tok
 

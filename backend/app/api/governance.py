@@ -33,6 +33,7 @@ from app.models import (
 from app.security import crypto
 from app.services import analytics, audit, breakglass, drift, gateway, recert
 from app.services import grants as grant_svc
+from app.services import projects as project_svc
 from app.services import users as user_svc
 
 router = APIRouter(prefix="/api", tags=["governance"])
@@ -145,6 +146,18 @@ def employee_analytics(user_id: str, cu: CurrentUser = Depends(require("analytic
 def employee_timeline(user_id: str, cu: CurrentUser = Depends(require("analytics:read")), db: Session = Depends(get_db)):
     _assert_visible(db, cu, user_id)
     return analytics.timeline(db, user_id)
+
+
+@router.get("/me/project-timeline")
+def my_project_timeline(cu: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """The signed-in employee's current project, its team, and their access on the project timeline."""
+    return project_svc.timeline(db, db.get(User, cu.id))
+
+
+@router.get("/employees/{user_id}/project-timeline")
+def employee_project_timeline(user_id: str, cu: CurrentUser = Depends(require("analytics:read")),
+                              db: Session = Depends(get_db)):
+    return project_svc.timeline(db, _assert_visible(db, cu, user_id))
 
 
 @router.get("/employees/{user_id}/evidence")
@@ -515,6 +528,8 @@ def agent_set_permission(agent_id: str, body: AgentPermIn, cu: CurrentUser = Dep
             p = AgentPermission(agent_id=a.id, resource_id=res.id, permissions=[])
             db.add(p)
         p.permissions = sort_perms(body.permissions)
+        p.revoked_at = None  # re-granting after a dependency-graph revocation
+        p.revoked_by_id = None
         p.expires_at = utcnow() + timedelta(days=body.expires_in_days) if body.expires_in_days else None
     audit.record(db, cu.actor, "AGENT_PERMISSION_CHANGED", resource_id=res.id, target_type="AGENT", target_id=a.code,
                  previous_state={"permissions": prev}, new_state={"permissions": body.permissions})

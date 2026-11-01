@@ -8,6 +8,8 @@ const nextConfig = {
   // The browser only ever talks to this origin; /api is proxied to FastAPI so auth
   // cookies stay first-party (HttpOnly + SameSite=Strict).
   async rewrites() {
+    // On Vercel the root vercel.json routes /api to the FastAPI service on the same domain.
+    if (process.env.VERCEL) return [];
     return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
   },
   async headers() {

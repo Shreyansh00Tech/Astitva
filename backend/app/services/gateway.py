@@ -181,6 +181,8 @@ def enforce_agent_access(db: Session, agent: AiAgent, resource_ref: str, action:
                                                     AgentPermission.resource_id == res.id)).scalar_one_or_none()
     if not perm:
         return decide(False, "RESOURCE_NOT_ALLOWED", "Agent is not authorized to access this resource.")
+    if perm.revoked_at is not None:
+        return decide(False, "PERMISSION_REVOKED", "Agent's permission for this resource was revoked.")
     if perm.expires_at and perm.expires_at <= now:
         return decide(False, "PERMISSION_EXPIRED", "Agent's permission for this resource has expired.")
     if action not in perm.permissions:

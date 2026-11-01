@@ -113,6 +113,22 @@
   .stepper-pop, .stepper-dot { animation: none; }
 }
 
+/* Overview motion: subtle, transform/opacity only, disabled for reduced motion. */
+@keyframes ov-rise { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+@keyframes ov-slide { from { opacity: 0; transform: translate3d(-8px, 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes ov-soft-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@layer components {
+  .ov-rise { animation: ov-rise .5s cubic-bezier(.22,1,.36,1) both; }
+  .ov-slide { animation: ov-slide .45s cubic-bezier(.22,1,.36,1) both; }
+  .ov-soft-pulse { animation: ov-soft-pulse 2.4s ease-in-out infinite; }
+  .ov-ring { transition: stroke-dashoffset 1.2s cubic-bezier(.22,1,.36,1); }
+  .ov-bar { transition: width 1.2s cubic-bezier(.22,1,.36,1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ov-rise, .ov-slide, .ov-soft-pulse { animation: none; }
+  .ov-ring, .ov-bar { transition: none; }
+}
+
 /* ------------------------------------------------------------------ login motion
    Transform/opacity only, so every frame is composited on the GPU (no layout, no paint) and runs at the
    display refresh rate. One easing curve everywhere for a calm, consistent feel. */
@@ -159,4 +175,18 @@
   .auth-scan { display: none; }
   .auth-card button[type="submit"]::after { display: none; }
   .auth-card button[type="submit"]:hover { transform: none; }
+}
+
+/* Access dependency graph */
+@keyframes graph-flow { to { stroke-dashoffset: -20; } }
+@keyframes graph-pulse { 0%, 100% { box-shadow: 0 0 0 0 hsl(var(--critical) / .35); } 50% { box-shadow: 0 0 0 5px hsl(var(--critical) / 0); } }
+@keyframes graph-pop { 0% { transform: scale(.94); } 55% { transform: scale(1.04); } 100% { transform: scale(1); } }
+@layer components {
+  .graph-flow { stroke-dasharray: 6 4; animation: graph-flow 1.1s linear infinite; }
+  .graph-flow-fast { stroke-dasharray: 6 4; animation: graph-flow .45s linear infinite; }
+  .graph-pulse { animation: graph-pulse 1.2s ease-in-out infinite; }
+  .graph-pop { animation: graph-pop .5s cubic-bezier(.22,1,.36,1) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-flow, .graph-flow-fast, .graph-pulse, .graph-pop { animation: none; }
 }
