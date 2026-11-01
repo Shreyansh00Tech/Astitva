@@ -77,6 +77,7 @@ class Settings(BaseSettings):
     enable_request_ticks: bool = False
     # Vercel: migrate + seed on the first request of a new instance (advisory-locked, cheap when done).
     auto_setup: bool = False
+    demo_examples: bool = True  # hosted demo: load two example records per feature once (app/showcase.py)
     seed_mode: str = "clean"  # clean (only the 5 people) | demo (with history) | none
     expose_dev_outbox: bool = True  # shows simulated emails/SMS in development only
 

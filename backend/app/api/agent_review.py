@@ -25,7 +25,8 @@ def queue(cu: CurrentUser = Depends(require("risk:decide")), db: Session = Depen
         item = {**agent_review.summary_out(review), "request": request_out(req),
                 "agents": [{"code": a["code"], "name": a["name"], "verdict": a["verdict"], "delta": a["delta"]}
                            for a in review.agents or []]}
-        (out["awaiting"] if review.status == "AWAITING_CHOICE" else out["recent"]).append(item)
+        open_req = req.status in ("PENDING", "CHANGES_REQUESTED")
+        (out["awaiting"] if review.status == "AWAITING_CHOICE" and open_req else out["recent"]).append(item)
     return out
 
 
