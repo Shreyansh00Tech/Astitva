@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -69,6 +72,12 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:3000"
     enable_inprocess_scheduler: bool = True
+    # Serverless hosts (Vercel) have no long-running scheduler: the periodic jobs run at most once per
+    # interval on the back of normal API traffic instead (see app.main.request_ticks).
+    enable_request_ticks: bool = False
+    # Vercel: migrate + seed on the first request of a new instance (advisory-locked, cheap when done).
+    auto_setup: bool = False
+    seed_mode: str = "clean"  # clean (only the 5 people) | demo (with history) | none
     expose_dev_outbox: bool = True  # shows simulated emails/SMS in development only
 
     @property
@@ -80,9 +89,61 @@ class Settings(BaseSettings):
         return self.app_env == "production"
 
 
+def _normalize_db_url(url: str) -> str:
+    # Neon / Vercel Postgres hand out postgres:// or postgresql:// URLs; SQLAlchemy needs the psycopg driver.
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
+def _apply_vercel_defaults(s: Settings) -> None:
+    """One Vercel project serves the UI and /api on the same domain. Fill in what the platform already knows."""
+    env = os.environ
+    if "DATABASE_URL" not in env:
+        alt = env.get("POSTGRES_URL") or env.get("NEON_DATABASE_URL")
+        if alt:
+            s.database_url = alt
+    if "REDIS_URL" not in env:
+        alt = env.get("KV_URL") or env.get("UPSTASH_REDIS_URL")
+        if alt:
+            s.redis_url = alt
+    host = env.get("VERCEL_PROJECT_PRODUCTION_URL") or env.get("VERCEL_URL")
+    if host:
+        origin = f"https://{host}"
+        if "FRONTEND_URL" not in env:
+            s.frontend_url = origin
+        if "NAMOID_REDIRECT_URI" not in env:
+            s.namoid_redirect_uri = f"{origin}/api/auth/namoid/callback"
+        if "CORS_ORIGINS" not in env:
+            s.cors_origins = origin
+    # HTTPS everywhere on Vercel. APP_ENV stays "demo" (not "production") so the simulated inbox that shows
+    # the demo accounts' sign-in codes keeps working; all data in this deployment is fictional.
+    if "APP_ENV" not in env:
+        s.app_env = "demo"
+    if "COOKIE_SECURE" not in env:
+        s.cookie_secure = True
+    if "ENABLE_INPROCESS_SCHEDULER" not in env:
+        s.enable_inprocess_scheduler = False
+    if "ENABLE_REQUEST_TICKS" not in env:
+        s.enable_request_ticks = True
+    if "AUTO_SETUP" not in env:
+        s.auto_setup = True
+    # No JWT_SECRET / TOKEN_PEPPER set: derive them from the database URL, which is already a secret
+    # that only this deployment holds. Setting both explicitly in Vercel is still the better choice.
+    if "JWT_SECRET" not in env and "TOKEN_PEPPER" not in env:
+        def derive(label: str) -> str:
+            return hmac.new(s.database_url.encode(), f"astitva:{label}".encode(), hashlib.sha256).hexdigest()
+        s.jwt_secret = derive("jwt")
+        s.token_pepper = derive("pepper")
+
+
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
+    if os.environ.get("VERCEL"):
+        _apply_vercel_defaults(s)
+    s.database_url = _normalize_db_url(s.database_url)
     if s.is_production:
         if s.jwt_secret.startswith("dev-only") or s.token_pepper.startswith("dev-only"):
             raise RuntimeError("Refusing to start in production with development secrets")

@@ -106,6 +106,10 @@ Template metadata check: `npm run check`. Template starter page: `npm run dev`
 Full product guide: [docs/ASTITVA-GUIDE.md](./docs/ASTITVA-GUIDE.md). Demo
 walkthrough: [docs/demo-test-workflow.md](./docs/demo-test-workflow.md).
 
+## Deploy on Vercel
+
+One Vercel project serves both the UI and the API (Vercel Services, `vercel.json`), with Neon Postgres and Upstash Redis from the Vercel dashboard. Steps: [docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md).
+
 ## What works
 
 ASTITVA is a purpose-bound access request and approval gate for fictional

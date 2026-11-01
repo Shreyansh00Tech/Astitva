@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { socketsEnabled } from "@/lib/realtime";
 
 export type ChatEvent =
   | { type: "chat"; message: { id: string; conversation_id: string; sender_id: string; body: string; created_at: string }; sender_name?: string }
@@ -12,7 +13,7 @@ let ws: WebSocket | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 
 function connect() {
-  if (ws || typeof window === "undefined") return;
+  if (ws || typeof window === "undefined" || !socketsEnabled) return;
   const base = process.env.NEXT_PUBLIC_WS_URL || `${location.protocol === "https:" ? "wss" : "ws"}://${location.hostname}:8000`;
   try {
     ws = new WebSocket(`${base}/api/ws/messages`);

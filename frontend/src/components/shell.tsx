@@ -15,6 +15,7 @@ import { primaryRole, ROLE_LABEL, useSession } from "@/lib/session";
 import { emergencyBeep, primeBeep } from "@/lib/beep";
 import { cn, relTime } from "@/lib/utils";
 import { useChatEvents } from "@/lib/chat";
+import { live, socketsEnabled } from "@/lib/realtime";
 import { Wordmark } from "./logo";
 import { Avatar, Skeleton } from "./ui/misc";
 import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from "./ui/dropdown";
@@ -50,7 +51,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const path = usePathname();
   const { can } = useSession();
   const chat = can("messages:use");
-  const { data: unread, mutate: refreshUnread } = useSWR(chat ? "/api/messages/unread" : null, fetcher, { refreshInterval: 30000 });
+  const { data: unread, mutate: refreshUnread } = useSWR(chat ? "/api/messages/unread" : null, fetcher, { refreshInterval: live(30000, 8000) });
   useChatEvents(() => refreshUnread(), chat);
   const badges: Record<string, number> = { messages: unread?.unread || 0 };
   return (
@@ -179,7 +180,7 @@ function GlobalSearch() {
 }
 
 function NotificationBell() {
-  const { data, mutate } = useSWR("/api/notifications?unread_only=false", fetcher, { refreshInterval: 30000 });
+  const { data, mutate } = useSWR("/api/notifications?unread_only=false", fetcher, { refreshInterval: live(30000, 10000) });
   const { me } = useSession();
   const isSecurityManager = !!me?.roles?.includes("SECURITY_ADMIN");
   const beepRef = useRef(isSecurityManager);
@@ -187,6 +188,7 @@ function NotificationBell() {
   const wsRef = useRef<WebSocket | null>(null);
   useEffect(() => (isSecurityManager ? primeBeep() : undefined), [isSecurityManager]);
   useEffect(() => {
+    if (!socketsEnabled) return;
     let stop = false;
     let retry: any;
     const connect = () => {
@@ -209,6 +211,18 @@ function NotificationBell() {
     connect();
     return () => { stop = true; clearTimeout(retry); wsRef.current?.close(); };
   }, [mutate]);
+  // Polling only (e.g. on Vercel): announce notifications that arrived since the last poll, the same way
+  // the WebSocket push does. The first load only records what is already there.
+  const seenRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (socketsEnabled || !data?.items) return;
+    const fresh = data.items.filter((n: any) => !n.read && seenRef.current && !seenRef.current.has(n.id));
+    seenRef.current = new Set(data.items.map((n: any) => n.id));
+    for (const n of fresh.reverse()) {
+      if (n.kind === "SECURITY_ALERT" && /^BREAK-GLASS activated/.test(n.title) && beepRef.current) emergencyBeep(n.id);
+      (n.severity === "CRITICAL" ? toast.error : n.severity === "WARNING" ? toast.warning : toast.info)(n.title);
+    }
+  }, [data]);
   const items = (data?.items || []).slice(0, 8);
   return (
     <Popover.Root>

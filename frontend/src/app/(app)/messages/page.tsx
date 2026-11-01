@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, CheckCheck, Lock, MessagesSquare, Search, SendHorizontal, Users } from "lucide-react";
 import { api, errorMessage, fetcher } from "@/lib/api";
 import { useChatEvents } from "@/lib/chat";
+import { live } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { Avatar, EmptyState, ErrorState, Skeleton } from "@/components/ui/misc";
@@ -46,8 +47,8 @@ export default function Messages() {
   const [q, setQ] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null); // contact (user) id
   const [convId, setConvId] = useState<string | null>(null);
-  const contacts = useSWR<Contact[]>(allowed ? "/api/messages/contacts" : null, fetcher, { refreshInterval: 20000 });
-  const thread = useSWR<Thread>(allowed && convId ? `/api/messages/conversations/${convId}` : null, fetcher, { refreshInterval: 15000 });
+  const contacts = useSWR<Contact[]>(allowed ? "/api/messages/contacts" : null, fetcher, { refreshInterval: live(20000, 8000) });
+  const thread = useSWR<Thread>(allowed && convId ? `/api/messages/conversations/${convId}` : null, fetcher, { refreshInterval: live(15000, 3000) });
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
