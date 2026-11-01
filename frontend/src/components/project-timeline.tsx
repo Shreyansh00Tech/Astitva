@@ -8,6 +8,8 @@ import { useCountUp, useMounted } from "@/lib/motion";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Avatar, EmptyState, Skeleton } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
+import { EmployeeCalendar } from "@/components/employee-calendar";
+import { MyTasksCard } from "@/components/my-tasks";
 
 const DAY = 86400000;
 const short = (v?: string | null) => (v ? new Date(v).toLocaleDateString(undefined, { day: "2-digit", month: "short" }) : "—");
@@ -171,8 +173,20 @@ function TimelineCard({ d }: { d: any }) {
 export function ProjectAccessBoxes({ endpoint, self = true }: { endpoint: string; self?: boolean }) {
   const { data } = useSWR(endpoint, fetcher, { refreshInterval: 60000 });
   if (!data) return <div className="grid gap-4 lg:grid-cols-2"><Skeleton className="h-[460px]" /><Skeleton className="h-[460px]" /></div>;
+  if (self) return (
+    // The employee's own view: project + personal task list side by side, then the full calendar.
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {data.project ? <ProjectCard d={data} self /> : (
+          <Card className={BOX}><EmptyState icon={FolderKanban} title="No active project" description="Access you request is not tied to a project until you join one." /></Card>
+        )}
+        <MyTasksCard />
+      </div>
+      <EmployeeCalendar timeline={data} />
+    </div>
+  );
   if (!data.project) return (
-    <Card><EmptyState icon={FolderKanban} title="No active project" description={self ? "Access you request is not tied to a project until you join one." : "This employee is not on an active project."} /></Card>
+    <Card><EmptyState icon={FolderKanban} title="No active project" description="This employee is not on an active project." /></Card>
   );
   return (
     <div className="grid gap-4 lg:grid-cols-2">

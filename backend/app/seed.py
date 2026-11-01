@@ -20,6 +20,7 @@ from app.core.context import SYSTEM, Actor
 from app.core.db import Base, SessionLocal, engine
 from app.core.rbac import ALL_ROLES, MANAGER, REQUESTER, RESOURCE_OWNER, RISK_REVIEWER, ROLE_DESCRIPTIONS, SECURITY_ADMIN
 from app.models import (
+    PlannerItem,
     AccessGrant,
     AccessRequest,
     AccessReview,
@@ -396,6 +397,46 @@ class Seeder:
         db.flush()
 
     # -------------------------------------------------------------- baselines & standing access
+    # -------------------------------------------------------------- personal planner
+    def planner(self):
+        """A few personal tasks on each employee's own calendar this week and next (times in IST, stored as UTC)."""
+        ist = timedelta(hours=5, minutes=30)
+        today = (NOW + ist).replace(hour=0, minute=0, second=0, microsecond=0)
+        monday = today - timedelta(days=today.weekday())
+
+        def at(day: int, hh: int, mm: int = 0):
+            return monday + timedelta(days=day, hours=hh, minutes=mm) - ist
+
+        plans = {
+            "eng_emp": [
+                ("Daily stand-up", "MEETING", 0, (10, 0), (10, 15)), ("Daily stand-up", "MEETING", 2, (10, 0), (10, 15)),
+                ("Daily stand-up", "MEETING", 4, (10, 0), (10, 15)),
+                ("Refactor auth middleware", "FOCUS", 1, (11, 0), (13, 0)), ("Sprint planning", "MEETING", 1, (15, 0), (16, 0)),
+                ("Review fraud model PR", "WORK", 2, (14, 30), (15, 30)), ("Write API tests", "WORK", 3, (11, 30), (13, 0)),
+                ("Atlas demo prep", "DEADLINE", 4, (16, 0), (17, 30)), ("Gym", "PERSONAL", 3, (8, 0), (8, 45)),
+                ("1:1 with Priya", "MEETING", 8, (12, 0), (12, 30)),
+            ],
+            "fin_emp": [
+                ("Q4 forecast model", "FOCUS", 0, (11, 0), (13, 0)), ("Falcon sync", "MEETING", 1, (10, 30), (11, 15)),
+                ("Reconcile ledger exports", "WORK", 2, (14, 0), (16, 0)), ("Board deck numbers", "DEADLINE", 3, (17, 0), (18, 0)),
+                ("Yoga", "PERSONAL", 4, (8, 0), (8, 45)), ("Variance review", "WORK", 7, (11, 0), (12, 0)),
+            ],
+            "hr_emp": [
+                ("Onboarding plan review", "WORK", 0, (11, 0), (12, 0)), ("Pulse survey design", "FOCUS", 1, (14, 0), (16, 0)),
+                ("Team lunch", "PERSONAL", 2, (13, 0), (14, 0)), ("Policy update draft", "DEADLINE", 4, (15, 0), (16, 30)),
+                ("Interview panel", "MEETING", 3, (11, 0), (12, 0)),
+            ],
+        }
+        for key, rows in plans.items():
+            u = self.users.get(key)
+            if u is None:
+                continue
+            for title, cat, day, (h1, m1), (h2, m2) in rows:
+                start = at(day, h1, m1)
+                self.db.add(PlannerItem(user_id=u.id, title=title, category=cat, start_at=start, end_at=at(day, h2, m2),
+                                        priority="HIGH" if cat == "DEADLINE" else "MEDIUM", done=start < NOW - timedelta(hours=2)))
+        self.db.flush()
+
     def baselines(self, clean: bool = False):
         db = self.db
         for key, u in self.users.items():
@@ -841,6 +882,7 @@ def run(reset: bool = False, clean: bool = False):
             s.org()
             s.resources()
             s.work()
+            s.planner()
             s.baselines(clean=True)
             s.agents()
             s.flush_audit()
@@ -852,6 +894,7 @@ def run(reset: bool = False, clean: bool = False):
         s.org()
         s.resources()
         s.work()
+        s.planner()
         s.baselines()
         s.history()
         s.standing_usage()

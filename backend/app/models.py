@@ -219,6 +219,22 @@ class Task(Base, TimestampMixin):
     verified_at: Mapped[datetime | None] = mapped_column(TS)
 
 
+class PlannerItem(Base, TimestampMixin):
+    """A personal task or event an employee puts on their own calendar. Private to its owner; never used in analytics."""
+
+    __tablename__ = "planner_items"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    notes: Mapped[str | None] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(16), default="WORK")  # WORK | MEETING | FOCUS | DEADLINE | PERSONAL
+    priority: Mapped[str] = mapped_column(String(8), default="MEDIUM")  # LOW | MEDIUM | HIGH
+    start_at: Mapped[datetime] = mapped_column(TS, index=True)
+    end_at: Mapped[datetime] = mapped_column(TS)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    done: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class TaskEvent(Base):
     """Recorded, verifiable work events. Analytics are computed only from these."""
 
