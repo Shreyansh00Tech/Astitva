@@ -9,10 +9,9 @@ x-backend-env: &backend-env
   TOKEN_PEPPER: ${TOKEN_PEPPER:-dev-only-change-me-astitva-pepper}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-  LLM_PROVIDER: ${LLM_PROVIDER:-none}
-  LLM_API_KEY: ${LLM_API_KEY:-}
-  LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5-5}
-  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_PROVIDER: ${LLM_PROVIDER:-none}          # none | ollama (local only, no API key)
+  LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
+  LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
   EXPOSE_DEV_OUTBOX: ${EXPOSE_DEV_OUTBOX:-true}
   # NamoID Hosted Auth (values from your local .env; the secret is never committed)
   NAMOID_ISSUER: ${NAMOID_ISSUER:-}

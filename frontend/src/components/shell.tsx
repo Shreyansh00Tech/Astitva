@@ -8,7 +8,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
   Activity, Bell, Bot, Building2, Check, ChevronsUpDown, ClipboardCheck, Database, FileClock, Gauge, KeyRound, LogOut,
-  Menu, MessagesSquare, Monitor, Moon, Network, ScrollText, Search, Settings, ShieldAlert, Siren, Sun, TrendingUp, Users, X, Inbox,
+  Menu, MessagesSquare, Monitor, Moon, Network, ScrollText, Search, Settings, ShieldAlert, Siren, Sun, TrendingUp, Users, X, Inbox, Workflow,
 } from "lucide-react";
 import { api, fetcher } from "@/lib/api";
 import { primaryRole, ROLE_LABEL, useSession } from "@/lib/session";
@@ -34,6 +34,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     { href: "/messages", label: "Messages", icon: MessagesSquare, perm: ["messages:use"], badgeKey: "messages" },
   ]},
   { section: "Security", items: [
+    { href: "/agent-review", label: "Agent Review", icon: Workflow, perm: ["risk:decide"], badgeKey: "agentReview" },
     { href: "/ai-security", label: "AI Security Center", icon: Bot, perm: ["agents:read"] },
     { href: "/dependency-graph", label: "Dependency Graph", icon: Network, perm: ["graph:read"] },
     { href: "/drift", label: "Permission Drift", icon: TrendingUp, perm: ["drift:read"] },
@@ -53,7 +54,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const chat = can("messages:use");
   const { data: unread, mutate: refreshUnread } = useSWR(chat ? "/api/messages/unread" : null, fetcher, { refreshInterval: live(30000, 8000) });
   useChatEvents(() => refreshUnread(), chat);
-  const badges: Record<string, number> = { messages: unread?.unread || 0 };
+  const { data: review } = useSWR(can("risk:decide") ? "/api/agent-review/queue" : null, fetcher, { refreshInterval: live(30000, 15000) });
+  const badges: Record<string, number> = { messages: unread?.unread || 0, agentReview: review?.awaiting?.length || 0 };
   return (
     <nav className="flex h-full flex-col">
       <div className="flex h-14 items-center px-4"><Wordmark /></div>

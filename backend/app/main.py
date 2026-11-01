@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import access, admin, auth, governance, graph, messages, workspace
+from app.api import access, admin, agent_review, auth, governance, graph, messages, workspace
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -125,7 +125,8 @@ async def unhandled(request: Request, exc: Exception):
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
-for r in (auth.router, access.router, governance.router, admin.router, graph.router, messages.router, workspace.router):
+for r in (auth.router, access.router, agent_review.router, governance.router, admin.router, graph.router, messages.router,
+          workspace.router):
     app.include_router(r)
 
 

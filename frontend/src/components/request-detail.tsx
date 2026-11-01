@@ -19,6 +19,7 @@ import { Perms, PriorityBadge, RiskBadge, RiskMeter, SensitivityBadge, STAGE_LAB
 import { AreaSeries } from "@/components/charts";
 import { ApprovalStepper, STEP_LABEL } from "@/components/stepper";
 import { ManageAccessDialog } from "@/components/manage-access";
+import { AgentReviewCard } from "@/components/agent-review";
 
 const ACTION_META: Record<string, { label: string; icon: any; tone: string }> = {
   APPROVE: { label: "Approved", icon: CheckCircle2, tone: "text-success" },
@@ -262,7 +263,7 @@ export function RequestDetail({ id, backHref, backLabel }: { id: string; backHre
 
           {risk && (
             <Card>
-              <CardHeader title={<span className="inline-flex items-center gap-1.5"><Brain className="h-4 w-4 text-violet" />AI risk assessment</span>} description={`Engine: ${risk.engine} · ${fmtDate(risk.assessed_at)}`} />
+              <CardHeader title={<span className="inline-flex items-center gap-1.5"><Brain className="h-4 w-4 text-violet" />Risk assessment (rule engine)</span>} description={`Engine: ${risk.engine} · ${fmtDate(risk.assessed_at)}`} />
               <CardBody className="space-y-5">
                 <div className="grid gap-6 md:grid-cols-2">
                   <RiskMeter score={risk.score} level={risk.level} />
@@ -315,6 +316,7 @@ export function RequestDetail({ id, backHref, backLabel }: { id: string; backHre
 
         <div className="space-y-4">
           {r.can_act && <ActionPanel r={r} onDone={() => mutate()} />}
+          {!mine && <AgentReviewCard key={`${r.status}-${r.current_stage}`} requestId={r.id} />}
           <PriorityCard key={`${r.deadline_at}-${r.business_impact}`} r={r} mine={mine} onDone={() => mutate()} />
           {r.blocked_reason && (
             <Card className="border-warning/40 bg-warning/[0.04] p-4">

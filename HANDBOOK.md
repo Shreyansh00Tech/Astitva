@@ -226,6 +226,20 @@ sentence, so approvers can see exactly why a score is what it is.
 WRITE, DELETE and ADMIN always need a human; an anomaly always adds the security review. The Security Manager can tune
 the thresholds on the Policies page, and each change is audited.
 
+**Agent review (Security Manager only).** Next to the rule engine, five review agents look at every new request:
+History (earlier requests and how access was used), Data impact (personal fields and downstream services), Purpose
+(does the justification fit, cite a ticket, or try to instruct the reviewer), Policy search (hybrid BM25 + RRF search
+over the Nexora policy handbook, plus earlier decisions) and a Challenger that removes claims without evidence and
+anything the rule engine already counts. A rule-based Aggregator turns this into an **AI score** and a verdict.
+
+- The rule score still decides routing. The agents can only **add** a Security Manager review, never remove one.
+- When the two scores disagree (15+ points, a different band, or text that tries to steer the reviewer), the Security
+  Manager picks the final score of record in **Agent Review**; picking the lower one needs a reason. Otherwise the
+  higher score is used automatically. Both steps are on the audit trail.
+- The Manager sees the final score and who set it, not the agents' working.
+- Everything runs inside ASTITVA, deterministic, with no external AI service or API key. An optional local Ollama
+  model (`LLM_PROVIDER=ollama`) may only phrase the summary.
+
 Approvers work from a **priority queue** ordered by deadline, business impact, waiting time and purpose urgency.
 Priority only changes the order, never the risk or the path.
 

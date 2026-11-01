@@ -10,7 +10,7 @@ from app.core.catalog import PURPOSES, purpose_label, sort_perms
 from app.core.context import Actor
 from app.core.rbac import RISK_REVIEWER, SECURITY_ADMIN
 from app.models import AccessGrant, AccessRequest, ApprovalRecord, Resource, User, utcnow
-from app.services import audit, priority, projects, risk, sod
+from app.services import agent_review, audit, priority, projects, risk, sod
 from app.services.grants import create_grant
 from app.services.notify import notify, notify_role, raise_alert
 
@@ -219,6 +219,7 @@ def submit(db: Session, actor: Actor, *, resource_id: str, permissions: list[str
         raise WorkflowError("No independent Security Manager is available to review your own request. "
                             "Use Emergency Access for urgent needs; it is monitored and reviewed afterwards.",
                             409, "SELF_APPROVAL")
+    review = agent_review.safe_run(db, req, ra, has_reviewers=bool(_security_reviewers(db, user)))
     req.current_stage = req.required_stages[0] if req.required_stages else None
     audit.record(db, actor, "REQUEST_CREATED", resource_id=res.id, target_type="ACCESS_REQUEST", target_id=req.ref,
                  request_id=req.id, new_state={"permissions": perms, "purpose": purpose, "duration_hours": duration_hours,
@@ -229,6 +230,7 @@ def submit(db: Session, actor: Actor, *, resource_id: str, permissions: list[str
                  target_type="ACCESS_REQUEST", target_id=req.ref, request_id=req.id,
                  new_state={"score": ra.score, "level": ra.level, "recommended_permissions": ra.recommended_permissions,
                             "recommended_duration_hours": ra.recommended_duration_hours, "engine": ra.engine})
+    agent_review.record_audit(db, req, review)
     if not req.required_stages:
         _auto_approve(db, req, rules, ra.score)
         db.commit()
@@ -295,6 +297,11 @@ def act(db: Session, actor: Actor, request_id: str, action: str, comment: str | 
         db.commit()
         raise WorkflowError(v.message, 403, v.rule)
 
+    if stage == "RISK" and action in ("APPROVE", "NARROW_SCOPE"):
+        review = agent_review.get(db, req.id)
+        if review and review.status == "AWAITING_CHOICE":
+            raise WorkflowError("The rule score and the AI score disagree. Pick the final score in Agent review "
+                                "before approving.", 409, "SCORE_CHOICE_REQUIRED")
     prev_scope = {"permissions": list(req.approved_permissions), "duration_hours": req.approved_duration_hours}
     if action in ("REJECT", "REQUEST_MODIFICATION") and not (comment and comment.strip()):
         raise WorkflowError("A comment is required for this action.", 422)
@@ -401,10 +408,13 @@ def resubmit(db: Session, actor: Actor, request_id: str, *, permissions: list[st
     db.flush()
     ra = risk.assess(db, req, as_of=utcnow())
     req.required_stages, req.routing_reasons = route(req.resource, ra.score, req.requester, db, perms, is_anomalous(ra))
+    review = agent_review.safe_run(db, req, ra, has_reviewers=bool(_security_reviewers(db, req.requester)),
+                                   as_of=utcnow())
     req.current_stage = req.required_stages[0] if req.required_stages else None
     audit.record(db, actor, "REQUEST_RESUBMITTED", resource_id=req.resource_id, target_type="ACCESS_REQUEST",
                  target_id=req.ref, request_id=req.id, previous_state=prev,
                  new_state={"permissions": perms, "purpose": purpose, "duration_hours": duration_hours, "risk": ra.score})
+    agent_review.record_audit(db, req, review)
     db.expire(req, ["risks"])
     if not req.required_stages:
         _auto_approve(db, req, routing_rules(db), ra.score)
