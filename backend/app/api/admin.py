@@ -453,6 +453,8 @@ def security_settings(cu: CurrentUser = Depends(get_current_user)):
                        "breakglass_default_minutes": s.breakglass_default_minutes,
                        "breakglass_max_minutes": s.breakglass_max_minutes},
         "ai": {"provider": s.llm_provider, "model": s.llm_model if s.llm_provider != "none" else None,
-               "note": "AI explains and recommends only. Authorization is deterministic policy + human approval."},
+               "local_only": True,
+               "note": "AI explains and recommends only. Authorization is deterministic policy + human approval. "
+                       "Only a local model (Ollama) can be used; there is no external AI API or key."},
         "roles": [{"name": r, "description": ROLE_DESCRIPTIONS[r], "permissions": sorted(ROLE_PERMISSIONS[r])} for r in ALL_ROLES],
     }

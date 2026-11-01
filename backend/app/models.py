@@ -365,6 +365,37 @@ class RiskAssessment(Base):
     __table_args__ = (CheckConstraint("score >= 0 AND score <= 100", name="ck_risk_score_range"),)
 
 
+class AgentReview(Base, TimestampMixin):
+    """Advisory multi-agent review of a request, next to the deterministic rule score.
+
+    The rule score stays the authority for routing. The agents can only add friction (an extra Security Manager
+    review), never remove a stage or approve. When the two scores disagree, the Security Manager records which one
+    is the final score of record; otherwise the higher one is used automatically (chosen = AUTO)."""
+
+    __tablename__ = "agent_reviews"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    request_id: Mapped[str] = mapped_column(ForeignKey("access_requests.id", ondelete="CASCADE"), unique=True, index=True)
+    rule_score: Mapped[int] = mapped_column(Integer)
+    ai_score: Mapped[int] = mapped_column(Integer)
+    final_score: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), index=True)  # AUTO_FINAL | AWAITING_CHOICE | DECIDED
+    needs_choice: Mapped[bool] = mapped_column(Boolean, default=False)
+    chosen: Mapped[str | None] = mapped_column(String(8))  # AUTO | RULE | AI
+    chosen_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    chosen_reason: Mapped[str | None] = mapped_column(Text)
+    chosen_at: Mapped[datetime | None] = mapped_column(TS)
+    verdict: Mapped[str] = mapped_column(String(24))  # APPROVE | APPROVE_NARROWED | ESCALATE | REJECT_SUGGESTED
+    stages_added: Mapped[list] = mapped_column(JSON, default=list)
+    agents: Mapped[list] = mapped_column(JSON, default=list)
+    aggregator: Mapped[dict] = mapped_column(JSON, default=dict)
+    engine: Mapped[str] = mapped_column(String(64))
+
+    chosen_by: Mapped[User | None] = relationship(foreign_keys=[chosen_by_id], lazy="joined")
+
+    __table_args__ = (CheckConstraint("ai_score >= 0 AND ai_score <= 100", name="ck_agent_review_ai_score"),
+                      CheckConstraint("final_score >= 0 AND final_score <= 100", name="ck_agent_review_final_score"))
+
+
 class AccessGrant(Base, TimestampMixin):
     __tablename__ = "access_grants"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

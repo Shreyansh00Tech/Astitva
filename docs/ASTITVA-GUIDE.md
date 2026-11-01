@@ -387,7 +387,7 @@ All settings are environment variables. See [`.env.example`](.env.example) for t
 | `JWT_SECRET`, `TOKEN_PEPPER` | `dev-only-…` | **Must** be replaced in production. Rotating `TOKEN_PEPPER` invalidates stored tokens and encrypted TOTP secrets. |
 | `COOKIE_SECURE`, `COOKIE_SAMESITE` | `false`, `strict` | |
 | `LOGIN_MAX_FAILURES`, `LOCKOUT_BASE_SECONDS`, `LOCKOUT_MAX_SECONDS` | 5, 60, 1800 | |
-| `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL` | `none` | Optional explanations only |
+| `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL` | `none` | Optional local Ollama model that only rephrases explanations (no external API, no key) |
 | `ENABLE_INPROCESS_SCHEDULER` | `true` | Set to `false` when Celery beat runs (Docker does this) |
 | `BACKEND_URL` (frontend, at build time) | `http://localhost:8000` | Target of the `/api` rewrite |
 | `NEXT_PUBLIC_WS_URL` | empty, which means `ws://<host>:8000` | Set it behind a reverse proxy |

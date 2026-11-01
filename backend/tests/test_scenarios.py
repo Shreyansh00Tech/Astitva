@@ -226,6 +226,14 @@ def test_06_conflicting_approvals_blocked(client, db):
     r = act(client, admin, req["id"])
     assert r.status_code == 403 and r.json()["detail"]["rule"].startswith("POLICY:")
     assert client.delete(f"/api/policies/{p.json()['id']}", headers=admin).status_code == 200
+    # If the review agents disagree with the rule score (depends on Kavya's earlier history in this test run),
+    # the Security Manager must set the final score before the security approval.
+    review = client.get(f"/api/requests/{req['id']}/agent-review", headers=admin).json()
+    if review["status"] == "AWAITING_CHOICE":
+        r = act(client, admin, req["id"])
+        assert r.status_code == 409 and r.json()["detail"]["rule"] == "SCORE_CHOICE_REQUIRED"
+        assert client.post(f"/api/agent-review/{req['id']}/choose", headers=admin,
+                           json={"choice": "AI", "reason": "Agents flagged history"}).status_code == 200
     r = act(client, admin, req["id"])
     assert r.status_code == 200 and r.json()["status"] == "APPROVED"
 

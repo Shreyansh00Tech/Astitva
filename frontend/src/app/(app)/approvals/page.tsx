@@ -20,6 +20,7 @@ import { Select } from "@/components/ui/input";
 import { MiniStepper } from "@/components/stepper";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Textarea } from "@/components/ui/input";
+import { AgentReviewQueue } from "@/components/agent-review";
 
 function RequestTable({ rows, empty, showPriority }: { rows: any[]; empty: string; showPriority?: boolean }) {
   const router = useRouter();
@@ -168,6 +169,7 @@ function Inner() {
           <TabsTrigger value="watching">In flight</TabsTrigger>
           <TabsTrigger value="history">My decisions</TabsTrigger>
           {can("reviews:read") && <TabsTrigger value="reviews">Access reviews</TabsTrigger>}
+          {can("risk:decide") && <TabsTrigger value="agents">Agent review</TabsTrigger>}
         </TabsList>
         {error ? <ErrorState error={error} onRetry={() => mutate()} /> : isLoading ? <LoadingRows /> : <>
           <TabsContent value="queue"><QueueToolbar {...{ sort, setSort, filter, setFilter, data }} /><Card><RequestTable showPriority rows={data.actionable} empty={filter ? "Nothing matches this filter" : "Nothing waiting on you"} /></Card></TabsContent>
@@ -175,6 +177,7 @@ function Inner() {
           <TabsContent value="history"><Card><RequestTable rows={data.history} empty="You haven't decided on any requests yet" /></Card></TabsContent>
         </>}
         <TabsContent value="reviews"><Reviews /></TabsContent>
+        {can("risk:decide") && <TabsContent value="agents"><AgentReviewQueue /></TabsContent>}
       </Tabs>
     </>
   );

@@ -60,7 +60,7 @@ Optional:
 | `JWT_SECRET`, `TOKEN_PEPPER` | Set both (`openssl rand -hex 32`) for your own secrets. Changing them signs everyone out. |
 | `SEED_MODE` | `clean` (default: only the 5 people), `demo` (with request history), or `none` |
 | `NAMOID_CLIENT_SECRET` | Only if your NamoID app is a confidential client |
-| `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL` | AI explanations (default: rule engine only) |
+| `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL` | Optional local model (Ollama) that only rephrases explanations. No external API or key (default: deterministic only) |
 
 ## Reset the hosted database
 

@@ -45,11 +45,11 @@ class Settings(BaseSettings):
     breakglass_max_minutes: int = 240
     expiring_soon_hours: int = 24
 
-    # AI provider: "none" (rule engine only), "anthropic", or "openai" (any OpenAI-compatible endpoint)
+    # Optional LOCAL language model, used only to phrase explanations: "none" (default, fully deterministic) or
+    # "ollama" with LLM_BASE_URL on this machine / the private network. No external AI API and no API key is used.
     llm_provider: str = "none"
-    llm_api_key: str | None = None
-    llm_model: str = "claude-sonnet-5-5"
-    llm_base_url: str | None = None
+    llm_model: str = "qwen3:8b"
+    llm_base_url: str | None = "http://localhost:11434"
 
     # NamoID Hosted Auth (OpenID Connect, Authorization Code + PKCE S256).
     # Issuer and Client ID come from the NamoID Console. The Client Secret is optional
