@@ -47,6 +47,19 @@ def get_review(request_id: str, cu: CurrentUser = Depends(get_current_user), db:
     raise HTTPException(404, "No agent review for this request")
 
 
+@router.post("/agent-review/demo")
+def load_demo(cu: CurrentUser = Depends(require("risk:decide")), db: Session = Depends(get_db)):
+    """Submit three simulated requests through the real workflow so every agent (and a disagreement) can be shown."""
+    from app.services.agent_review import demo
+    from app.services.workflow import WorkflowError
+
+    try:
+        return {"scenarios": demo.run(db, cu.actor)}
+    except WorkflowError as e:
+        db.rollback()
+        raise HTTPException(e.status, {"message": e.message, "rule": e.rule})
+
+
 class ChoiceIn(BaseModel):
     choice: str = Field(pattern="^(RULE|AI)$")
     reason: str | None = Field(default=None, max_length=1000)

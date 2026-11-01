@@ -61,6 +61,7 @@ export function AgentReviewQueue() {
   return (
     <div className="space-y-4">
       <HowItWorks />
+      <DemoBar onDone={() => mutate()} />
       <div>
         <div className="mb-2 flex items-center gap-2 text-[13px] font-medium">Needs your score <Badge tone="warning">{data.awaiting.length}</Badge></div>
         <Card><QueueTable rows={data.awaiting} empty="No disagreements to settle" /></Card>
@@ -70,6 +71,30 @@ export function AgentReviewQueue() {
         <Card><QueueTable rows={data.recent} empty="No reviews yet" /></Card>
       </div>
     </div>
+  );
+}
+
+function DemoBar({ onDone }: { onDone: () => void }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setBusy(true);
+    try {
+      const r = await api("/api/agent-review/demo", { method: "POST" });
+      toast.success(`Demo loaded: ${r.scenarios.map((x: any) => x.ref).join(", ")}`);
+      onDone();
+      if (r.scenarios[0]) router.push(`/agent-review/${r.scenarios[0].request_id}`);
+    } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Card className="flex flex-col gap-3 border-dashed p-4 sm:flex-row sm:items-center">
+      <div className="flex-1">
+        <div className="text-[13px] font-medium">Demo scenarios</div>
+        <p className="text-xs text-muted-foreground">Submits 3 simulated requests through the real workflow: Rahul with a history of over-asking (disagreement),
+          Neha with an instruction hidden in her justification (disagreement), and Kavya with a clean, ticketed request (agents agree).</p>
+      </div>
+      <Button onClick={load} loading={busy} variant="outline"><Sparkles />Load demo</Button>
+    </Card>
   );
 }
 
