@@ -176,7 +176,7 @@ def history_agent(db: Session, c: Context) -> AgentResult:
     if revoked_here:
         g = revoked_here[0]
         a.findings.append(Finding("H3", f"Access to {c.res.name} was revoked by someone else on "
-                                        f"{g.revoked_at:%d %b}: “{(g.revoke_reason or 'no reason given')[:80]}”.",
+                                        f"{g.revoked_at:%d %b}: “{(g.revoke_reason or 'no reason given')[:140]}”.",
                                   8, "risk", [_gref(x) for x in revoked_here[:3]]))
     clean_here = [g for g in grants if g.resource_id == c.res.id and g not in revoked_here
                   and (g.last_used_at or g.id in used_ids)]

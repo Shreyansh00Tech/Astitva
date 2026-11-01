@@ -49,8 +49,17 @@ def test_medium_risk_needs_manager_only(client, db, routing_on):
     kavya = login(client, "kavya.reddy")
     req = submit(client, kavya, "RES-DS-003", db, ["READ", "WRITE"], "MODEL_TRAINING", 168)
     assert 30 < req["risk"]["score"] <= 60, req["risk"]
-    assert req["required_stages"] == ["MANAGER"]
+    meera = login(client, "admin")
+    review = client.get(f"/api/requests/{req['id']}/agent-review", headers=meera).json()
+    # The rule engine routes to the Manager only. The review agents may add a Security Manager review on top
+    # (depends on Kavya's history earlier in this test run); they never remove the Manager.
+    assert req["required_stages"] == ["MANAGER"] + review["stages_added"]
     r = client.post(f"/api/approvals/{req['id']}/action", headers=login(client, "priya.desai"), json={"action": "APPROVE"})
+    if review["stages_added"]:
+        assert r.status_code == 200 and r.json()["current_stage"] == "RISK"
+        if review["status"] == "AWAITING_CHOICE":
+            assert client.post(f"/api/agent-review/{req['id']}/choose", headers=meera, json={"choice": "AI"}).status_code == 200
+        r = client.post(f"/api/approvals/{req['id']}/action", headers=meera, json={"action": "APPROVE"})
     assert r.status_code == 200 and r.json()["status"] == "APPROVED"
     assert db.execute(select(AccessGrant).where(AccessGrant.request_id == req["id"])).scalar_one().status == "ACTIVE"
 

@@ -199,3 +199,25 @@ def test_policy_search_ranks_the_relevant_clause_first():
            "pii_fields": 0, "tickets": [], "project": None, "injection": False, "cross_dept": False}
     hits = policy_search.search("write access to a critical production model change ticket", ctx)
     assert hits[0]["id"] == "NX-POL-101" and hits[0]["applies"] and hits[0]["points"] > 0
+
+
+def test_demo_shows_every_agent_and_two_disagreements(client, db, routing_on):
+    meera = login(client, "admin")
+    assert client.post("/api/agent-review/demo", headers=login(client, "priya.desai")).status_code == 403
+    r = client.post("/api/agent-review/demo", headers=meera)
+    assert r.status_code == 200, r.text
+    rows = {s["title"]: s for s in r.json()["scenarios"]}
+    hist = review_of(db, rows["History + policy disagreement"]["request_id"])
+    assert hist.status == "AWAITING_CHOICE" and hist.ai_score - hist.rule_score >= 15
+    h = next(a for a in hist.agents if a["code"] == "HISTORY")
+    assert h["verdict"] == "RISK" and "H3" in {f["id"] for f in h["findings"]}  # revoked earlier by security
+    inj = review_of(db, rows["Prompt injection in the justification"]["request_id"])
+    assert inj.status == "AWAITING_CHOICE" and inj.aggregator["injection"]
+    ok = review_of(db, rows["Agents agree"]["request_id"])
+    assert ok.status == "AUTO_FINAL" and ok.chosen == "AUTO"
+    # Running it again replaces the open demo requests instead of failing on duplicates
+    again = client.post("/api/agent-review/demo", headers=meera)
+    assert again.status_code == 200
+    for s in again.json()["scenarios"]:
+        cancel(client, login(client, {"Rahul Sharma": "rahul.sharma", "Neha Gupta": "neha.gupta",
+                                      "Kavya Reddy": "kavya.reddy"}[s["requester"]]), {"id": s["request_id"]})
