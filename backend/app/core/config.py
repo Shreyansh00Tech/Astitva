@@ -97,15 +97,26 @@ def _normalize_db_url(url: str) -> str:
     return url
 
 
+def _find_env(names: tuple[str, ...], suffixes: tuple[str, ...]) -> str | None:
+    """Vercel storage integrations may add a custom prefix (e.g. STORAGE_DATABASE_URL). Exact names win."""
+    for n in names:
+        if os.environ.get(n):
+            return os.environ[n]
+    for k in sorted(os.environ):
+        if k.endswith(suffixes) and "UNPOOLED" not in k and "NON_POOLING" not in k and os.environ[k]:
+            return os.environ[k]
+    return None
+
+
 def _apply_vercel_defaults(s: Settings) -> None:
     """One Vercel project serves the UI and /api on the same domain. Fill in what the platform already knows."""
     env = os.environ
     if "DATABASE_URL" not in env:
-        alt = env.get("POSTGRES_URL") or env.get("NEON_DATABASE_URL")
+        alt = _find_env(("POSTGRES_URL", "NEON_DATABASE_URL"), ("_DATABASE_URL", "_POSTGRES_URL"))
         if alt:
             s.database_url = alt
     if "REDIS_URL" not in env:
-        alt = env.get("KV_URL") or env.get("UPSTASH_REDIS_URL")
+        alt = _find_env(("KV_URL", "UPSTASH_REDIS_URL"), ("_REDIS_URL", "_KV_URL"))
         if alt:
             s.redis_url = alt
     host = env.get("VERCEL_PROJECT_PRODUCTION_URL") or env.get("VERCEL_URL")

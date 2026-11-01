@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -83,10 +84,11 @@ async def hosted_setup_and_ticks(request: Request, call_next):
 
             try:
                 await asyncio.to_thread(deploy_setup.ensure)
-            except Exception:
+            except Exception as exc:
                 log.exception("database setup failed")
-                return JSONResponse({"detail": "The database is still being set up, or DATABASE_URL is wrong. "
-                                               "Check the function logs and try again."}, status_code=503)
+                return JSONResponse({"detail": "The database is still being set up, or DATABASE_URL is wrong "
+                                               f"({type(exc).__name__}). Open /api/health and the function logs."},
+                                    status_code=503)
         if settings.enable_request_ticks:
             try:
                 await asyncio.to_thread(_run_due_ticks)
@@ -146,4 +148,7 @@ def health():
         status["redis"] = "ok"
     except Exception:
         status["redis"] = "down"
+    if os.environ.get("VERCEL") and "down" in status.values():
+        # Names only (never values), so a missing storage connection is easy to spot.
+        status["env_seen"] = sorted(k for k in os.environ if any(t in k for t in ("DATABASE", "POSTGRES", "REDIS", "KV_")))
     return status

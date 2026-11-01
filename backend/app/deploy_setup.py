@@ -26,7 +26,8 @@ _mutex = threading.Lock()
 def _direct_url() -> str:
     # Advisory locks need a real session, not PgBouncer's transaction pooling, so prefer the direct URL.
     env = os.environ
-    url = env.get("DATABASE_URL_UNPOOLED") or env.get("POSTGRES_URL_NON_POOLING") or get_settings().database_url
+    url = next((env[k] for k in sorted(env) if k.endswith(("DATABASE_URL_UNPOOLED", "POSTGRES_URL_NON_POOLING")) and env[k]),
+               None) or get_settings().database_url
     return _normalize_db_url(url)
 
 
