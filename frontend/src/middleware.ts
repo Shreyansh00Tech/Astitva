@@ -16,4 +16,8 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+export const config = {
+  // Node.js runtime: Vercel Services do not run Edge functions.
+  runtime: "nodejs",
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
