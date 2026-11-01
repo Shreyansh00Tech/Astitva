@@ -140,8 +140,12 @@ class Loader:
             db.execute(delete(Notification).where(Notification.link.contains(r.id)))
             db.execute(delete(SecurityAlert).where(SecurityAlert.title.contains(r.ref)))
             db.execute(delete(Notification).where(Notification.title.contains(r.ref)))
-        for r in reqs:
-            db.delete(r)
+        from app.models import AgentReview, RiskAssessment
+        db.execute(delete(ApprovalRecord).where(ApprovalRecord.request_id.in_(ids)))
+        db.execute(delete(RiskAssessment).where(RiskAssessment.request_id.in_(ids)))
+        db.execute(delete(AgentReview).where(AgentReview.request_id.in_(ids)))
+        db.execute(delete(AccessRequest).where(AccessRequest.id.in_(ids)))
+        db.expunge_all()
         db.flush()
         self.bump("old_demo_removed", len(reqs))
 
@@ -607,16 +611,17 @@ class Loader:
 
     # ---------------------------------------------------------------- run
     def run(self) -> dict:
-        self.remove_old_demo()
-        self.history()
-        self.standing()
-        self.emergency()
-        self.agents()
-        self.messages()
-        self.calendar()
-        self.db.commit()
-        self.live()
-        self.db.commit()
+        # Each part commits on its own, so one failure never hides the other examples.
+        for part in (self.remove_old_demo, self.history, self.standing, self.emergency, self.agents, self.messages,
+                     self.calendar, self.live):
+            try:
+                part()
+                self.db.commit()
+            except Exception as exc:  # noqa: BLE001
+                self.db.rollback()
+                self.counts[f"failed:{part.__name__}"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+            self.u = {k: self.db.get(User, v.id) for k, v in self.u.items()}
+            self.r = {r.code: r for r in self.db.execute(select(Resource)).scalars()}
         return self.counts
 
 
