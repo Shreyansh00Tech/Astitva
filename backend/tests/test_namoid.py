@@ -252,3 +252,20 @@ def test_roles_only_in_userinfo_are_used(client, nid):
     q, flow = _start(client, nid)
     _callback(client, flow, code="a", state=q["state"])
     assert client.get("/api/auth/me").json()["roles"] == ["MANAGER"]
+
+
+# ------------------------------------------------------------------ NamoID sandbox test users
+def test_test_identifier_candidates():
+    assert namoid.test_user_candidates("rahul.sharma.nexora.example+namoid_test_dj8x9mzm@test.namoid.in") == [
+        "rahul@sharma.nexora.example", "rahul.sharma@nexora.example"]
+    assert namoid.test_user_candidates("rahul.sharma@nexora.example") == []
+    assert namoid.test_user_candidates("x.nexora.example+namoid_test_ab@evil.example") == []
+
+
+def test_namoid_test_user_links_to_seeded_account(client, nid):
+    nid["claims"] = {"email": "rahul.sharma.nexora.example+namoid_test_dj8x9mzm@test.namoid.in",
+                     "name": "rahul.sharma.nexora.example+namoid_test_dj8x9mzm", "sub": "nid_test_rahul"}
+    q, flow = _start(client, nid)
+    assert _callback(client, flow, code="a", state=q["state"]).status_code == 200
+    me = client.get("/api/auth/me").json()
+    assert me["email"] == "rahul.sharma@nexora.example" and me["name"] == "Rahul Sharma"

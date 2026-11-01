@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import re
 import time
 from dataclasses import dataclass
 from urllib.parse import urlencode
@@ -237,9 +238,33 @@ def _user_map() -> dict[str, str]:
     return out
 
 
+TEST_IDENTIFIER = re.compile(r"^(?P<local>[^@+]+)\+namoid_test_[a-z0-9]+@test\.namoid\.in$")
+
+
+def test_user_candidates(email: str) -> list[str]:
+    """NamoID sandbox test users sign in with an identifier such as
+    ``rahul.sharma.nexora.example+namoid_test_dj8x9mzm@test.namoid.in`` for the display email
+    ``rahul.sharma@nexora.example``. The "@" became a ".", so every split point is a candidate;
+    only one that matches an existing ASTITVA account is used."""
+    m = TEST_IDENTIFIER.match(email)
+    if not m:
+        return []
+    parts = m.group("local").split(".")
+    return [".".join(parts[:i]) + "@" + ".".join(parts[i:]) for i in range(1, len(parts) - 1)]
+
+
 def resolve_user(db: Session, email: str, name: str | None, ip: str, roles: list[str] | None = None) -> User:
-    target = _user_map().get(email, email)
-    user = db.execute(select(User).where(User.email == target)).scalar_one_or_none()
+    mapped = _user_map().get(email)
+    user = None
+    if mapped:
+        user = db.execute(select(User).where(User.email == mapped)).scalar_one_or_none()
+    if not user:
+        for candidate in test_user_candidates(email):
+            user = db.execute(select(User).where(User.email == candidate)).scalar_one_or_none()
+            if user:
+                break
+    if not user:
+        user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if user:
         if user.status != "ACTIVE" or user.is_service_account:
             raise AuthError("This account cannot sign in.", 403, "NAMOID_ACCOUNT_INACTIVE")
